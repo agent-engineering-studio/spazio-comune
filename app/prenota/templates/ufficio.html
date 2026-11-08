@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block titolo %}Ufficio Sport{% endblock %}
 {% block main %}
-<h1 class="h2">Ufficio Cultura, Istruzione e Sport</h1>
+<h1 class="h2">{{ SPAZIO.ufficio }}</h1>
+<p class="lead">{{ SPAZIO.nome }} · {{ SPAZIO.indirizzo }}</p>
 <div class="row g-3 mb-4">
   <div class="col-sm-4"><div class="card shadow-sm"><div class="card-body">
     <p class="small text-muted mb-1">Prenotazioni pagate (14 giorni)</p><p class="h3 mb-0">{{ n_conf }}</p></div></div></div>
@@ -11,6 +12,28 @@
     <p class="small text-muted mb-1">Esporta</p>
     <a href="/ufficio/export.csv" class="btn btn-outline-primary btn-sm me-1 mb-1">CSV per ragioneria</a>
     <a href="{{ feed }}" class="btn btn-outline-primary btn-sm mb-1">Calendario (iCal)</a></div></div></div>
+</div>
+
+<h2 class="h4" id="occupazione">Occupazione degli slot</h2>
+<p class="small text-muted">Per ogni orario, il numero di prenotazione registrato sullo slot (dati della tabella <code>slot</code>).</p>
+<div class="table-responsive mb-4">
+<table class="table table-sm table-bordered occupazione">
+  <caption class="visually-hidden">Occupazione dei prossimi 14 giorni con numero di prenotazione</caption>
+  <thead><tr><th scope="col">Giorno</th>{% for o in orari %}<th scope="col">{{ o }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for g in giorni %}{% set per_ora = g.per_ora %}
+    <tr>
+      <th scope="row">{{ g.data|data_lunga|replace(" " ~ dal.year, "") }}</th>
+      {% for o in orari %}{% set sl = per_ora.get(o) %}
+      <td>{% if not sl %}<span class="cella text-muted">chiuso</span>
+        {% else %}<span class="cella {{ STATI_SLOT[sl.stato][1] }}">
+          {% if sl.codice %}<strong class="font-monospace">{{ sl.codice }}</strong><br>{{ (ATTIVITA[sl.attivita].nome if sl.attivita in ATTIVITA else "Riservato")|truncate(18, True, "…") }}
+          {% else %}{{ STATI_SLOT[sl.stato][0] }}{% endif %}</span>{% endif %}</td>
+      {% endfor %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
 </div>
 
 <h2 class="h4">Riserva uno slot (manutenzione, società sportive, eventi)</h2>

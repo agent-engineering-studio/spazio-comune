@@ -28,6 +28,7 @@ nav = [
     { "Installazione" = "installazione.md" },
     { "Configurazione (.env)" = "configurazione.md" },
     { "Intelligenza artificiale" = "intelligenza-artificiale.md" },
+    { "Server MCP" = "mcp.md" },
     { "Architettura" = "architettura.md" },
     { "Installazione conforme PA" = "normativa-it.md" },
     { "Video e demo" = "video.md" },

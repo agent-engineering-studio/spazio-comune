@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block titolo %}Prenota il campo di via Benagiano{% endblock %}
+{% block titolo %}Prenota {{ SPAZIO.nome }}{% endblock %}
 {% block main %}
 <nav class="breadcrumb-container" aria-label="Percorso di navigazione">
   <ol class="breadcrumb p-0">
-    <li class="breadcrumb-item"><a href="https://www.comune.gioiadelcolle.ba.it/">Home</a><span class="separator">/</span></li>
-    <li class="breadcrumb-item"><a href="https://www.comune.gioiadelcolle.ba.it/area_eagenda_servizi/pagsistema.html">Prenota appuntamento</a><span class="separator">/</span></li>
-    <li class="breadcrumb-item active" aria-current="page">Impianti sportivi</li>
+    <li class="breadcrumb-item"><a href="{{ SPAZIO.comune_sito }}">{{ SPAZIO.comune }}</a><span class="separator">/</span></li>
+    <li class="breadcrumb-item active" aria-current="page">Prenota {{ SPAZIO.nome }}</li>
   </ol>
 </nav>
 
 <div class="row">
   <div class="col-lg-8">
-    <h1 class="titolo-pagina">Prenota il {{ impianto.nome|replace("Campo comunale coperto", "campo coperto") }}</h1>
+    <h1 class="titolo-pagina">Prenota: {{ SPAZIO.nome }}</h1>
+    <p class="mb-1"><svg class="icon icon-sm" aria-hidden="true"><use href="{{ ICO }}#it-map-marker"></use></svg> {{ SPAZIO.indirizzo }}</p>
     <p class="lead">Scegli sport e orario, paga con pagoPA e al campo mostra il QR code. Nessuna ricevuta da caricare o stampare.</p>
   </div>
 </div>
@@ -70,13 +70,13 @@
 <section aria-labelledby="titolo-attivita" class="mb-3">
   <h2 id="titolo-attivita" class="h4">1. Scegli lo sport</h2>
   <div class="d-flex flex-wrap gap-2" role="group" aria-label="Sport">
-  {% for codice in impianto.attivita %}{% set a = ATTIVITA[codice] %}
+  {% for codice in SPAZIO.attivita %}{% set a = ATTIVITA[codice] %}
     <a href="/?attivita={{ codice }}&dal={{ dal }}" class="btn {{ 'btn-primary' if codice == attivita_sel else 'btn-outline-primary' }}"
        {% if codice == attivita_sel %}aria-current="true"{% endif %}>
       {{ a.nome }} <span class="badge bg-white text-primary ms-1">€ {{ a.tariffa_eur }}</span></a>
   {% endfor %}
   </div>
-  <p class="small text-muted mt-2 mb-0">Prezzo totale per il gruppo, slot da 60 minuti ({{ FONTE_TARIFFE }}).</p>
+  <p class="small text-muted mt-2 mb-0">Prezzo totale per il gruppo, slot da {{ SPAZIO.durata_min }} minuti ({{ FONTE_TARIFFE }}).</p>
 </section>
 
 <section aria-labelledby="titolo-cal">
@@ -87,6 +87,11 @@
       {% if succ %}<a class="btn btn-outline-secondary btn-sm" href="/?attivita={{ attivita_sel }}&dal={{ succ }}">Settimana successiva ›</a>{% endif %}
     </div>
   </div>
+  <ul class="legenda list-unstyled d-flex flex-wrap gap-3 small mb-3" aria-label="Legenda">
+    {% for k in ("libero", "occupato", "in_pagamento", "riservato") %}
+    <li><span class="slot-campione {{ STATI_SLOT[k][1] }}" aria-hidden="true"></span> {{ STATI_SLOT[k][0] }}</li>
+    {% endfor %}
+  </ul>
   <div class="row g-3 settimana">
   {% for g in giorni %}
     <div class="col-12 col-sm-6 col-lg-3 col-xl">
@@ -96,7 +101,9 @@
           {% if not g.slot %}
             <p class="small text-muted mb-0">Chiuso</p>
           {% else %}
-            <p class="small mb-2 {{ 'text-success' if g.liberi else 'text-muted' }}">{{ g.liberi }} {{ 'orario libero' if g.liberi == 1 else 'orari liberi' }}</p>
+            {% set impegnati = g.slot|selectattr("stato", "in", ["occupato", "in_pagamento", "riservato"])|list|length %}
+            <p class="small mb-2"><span class="{{ 'text-success' if g.liberi else 'text-muted' }}">{{ g.liberi }} {{ 'libero' if g.liberi == 1 else 'liberi' }}</span>
+              · <span class="text-danger">{{ impegnati }} {{ 'impegnato' if impegnati == 1 else 'impegnati' }}</span></p>
             <ul class="list-unstyled mb-0 d-grid gap-1">
             {% for s in g.slot %}
               <li>
@@ -105,7 +112,7 @@
                    href="/prenota?inizio={{ s.inizio|urlencode }}&attivita={{ attivita_sel }}"
                    aria-label="Prenota {{ g.data|data_lunga }} ore {{ s.ora }}, {{ ATTIVITA[attivita_sel].nome }}, euro {{ ATTIVITA[attivita_sel].tariffa_eur }}">{{ s.ora }}</a>
               {% else %}
-                <span class="btn btn-sm w-100 slot slot-occupato disabled" aria-disabled="true">{{ s.ora }} · occupato</span>
+                <span class="btn btn-sm w-100 slot {{ STATI_SLOT[s.stato][1] }} disabled" aria-disabled="true">{{ s.ora }} · {{ STATI_SLOT[s.stato][0]|lower }}</span>
               {% endif %}
               </li>
             {% endfor %}
@@ -136,7 +143,7 @@
         <p class="mb-1">{{ faq.risposta }}</p>
         <p class="small text-muted mb-0">{% if faq.generato_da_ia %}Testo generato da IA a partire dalle {% else %}Fonte: {% endif %}informazioni ufficiali del servizio ({{ faq.fonti|join(", ") }}).</p>
       {% else %}
-        <p class="mb-0">Non ho una risposta certa. Contatta l'Ufficio Cultura, Istruzione e Sport.</p>
+        <p class="mb-0">Non ho una risposta certa. Contatta l'{{ SPAZIO.ufficio }}.</p>
       {% endif %}
     </div>
   {% endif %}

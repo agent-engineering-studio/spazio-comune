@@ -1,6 +1,7 @@
-# Spazio Comune – Comune di Gioia del Colle
+# Spazio Comune: prenotazione di UN luogo comunale, descritto nel file .env (SPAZIO_*, COMUNE_*).
+# Per più luoghi: una copia del repository (e un .env) per ciascuno.
 #
-#   docker compose up --build                       app + server di inferenza (backend "rules", offline)
+#   docker compose up --build                       app + server di inferenza (backend "rules", offline) + server MCP
 #   docker compose --profile test run --rm test     suite pytest
 #   docker compose --profile llm up --build         + LLM locale con Ollama (modello piccolo, CPU)
 #   docker compose --profile demo up --build -d     + istanza demo con dati fittizi su :8001
@@ -15,7 +16,7 @@ services:
     env_file: [.env]
     environment:
       INFERENCE_URL: http://inference:8080
-      DB_PATH: /data/prenota.db
+      DB_PATH: /data/prenota.db          # database SQLite: file nel volume "dati"
     volumes: ["dati:/data"]
     depends_on:
       inference:
@@ -33,6 +34,20 @@ services:
       LLM_TIMEOUT: ${LLM_TIMEOUT:-20}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     expose: ["8080"]          # non pubblicato: raggiungibile solo dall'app
+    restart: unless-stopped
+
+  # --- server MCP: il luogo come strumento per altri agenti (usa solo le API HTTP dell'app)
+  mcp:
+    container_name: spazio-comune-mcp
+    build: ./mcp_server
+    ports: ["127.0.0.1:8090:8090"]     # http://localhost:8090/mcp, solo dalla macchina locale
+    environment:
+      SPAZIO_COMUNE_URL: http://app:8000
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost:*,127.0.0.1:*}
+      # strumenti dell'ufficio (numeri di prenotazione): attivi solo se impostati nel .env
+      SPAZIO_COMUNE_UFFICIO_USER: ${MCP_UFFICIO_USER:-}
+      SPAZIO_COMUNE_UFFICIO_PASSWORD: ${MCP_UFFICIO_PASSWORD:-}
+    depends_on: [app]
     restart: unless-stopped
 
   # --- LLM locale opzionale (nessun dato fuori dal server del Comune)
@@ -59,6 +74,7 @@ services:
     profiles: ["demo"]
     command: ["python", "scripts/demo.py"]
     ports: ["8001:8000"]
+    env_file: [.env]                   # stesso luogo (SPAZIO_*, COMUNE_*); i valori sotto prevalgono
     environment:
       HOST: 0.0.0.0
       PORT: "8000"
@@ -67,6 +83,10 @@ services:
       INFERENCE_URL: http://inference:8080
       SECRET_KEY: demo-non-usare-in-produzione
       FEED_TOKEN: demo
+      UFFICIO_USER: ufficio.sport          # credenziali fisse della demo
+      UFFICIO_PASSWORD: cambiami
+      CUSTODE_PASSWORD: custode
+      COOKIE_SECURE: "false"
       DEMO_ORA: ${DEMO_ORA:-2026-11-09T18:35:00}
     depends_on:
       inference:

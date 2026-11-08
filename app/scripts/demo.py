@@ -48,7 +48,7 @@ def popola(app, ora: datetime, seme: int = 37) -> None:
 
     def prenota(inizio: datetime, attivita: str, chi: Cittadino) -> None:
         try:
-            p = servizio.prenota("benagiano", attivita, inizio.isoformat(), chi, note=None)
+            p = servizio.prenota(attivita, inizio.isoformat(), chi, note=None)
             servizio.conferma_manuale(p["codice"], "RF" + "".join(rnd.choice("0123456789ABCDEF") for _ in range(16)))
         except ErrorePrenotazione:
             pass
@@ -56,7 +56,7 @@ def popola(app, ora: datetime, seme: int = 37) -> None:
     # stasera: il custode ha già qualche ingresso da verificare
     prenota(datetime.combine(oggi, datetime.min.time(), TZ).replace(hour=19), "calcetto", CITTADINI[0])
     prenota(datetime.combine(oggi, datetime.min.time(), TZ).replace(hour=20), "tennis_doppio", CITTADINI[1])
-    servizio.blocca("benagiano", datetime.combine(oggi, datetime.min.time(), TZ).replace(hour=21).isoformat(), RISERVE[0])
+    servizio.blocca(datetime.combine(oggi, datetime.min.time(), TZ).replace(hour=21).isoformat(), RISERVE[0])
 
     # prossimi 14 giorni: circa metà degli slot occupati, venerdì sera alle 20 già preso
     for i in range(1, 15):
@@ -68,7 +68,7 @@ def popola(app, ora: datetime, seme: int = 37) -> None:
             if g.weekday() == 4 and h == 20:
                 prenota(inizio, "calcetto", CITTADINI[2])
             elif rnd.random() < 0.08:
-                servizio.blocca("benagiano", inizio.isoformat(), rnd.choice(RISERVE))
+                servizio.blocca(inizio.isoformat(), rnd.choice(RISERVE))
             elif rnd.random() < (0.55 if h >= 18 else 0.3):
                 att = rnd.choices(["calcetto", "tennis_singolo", "tennis_doppio"], [6, 2, 2])[0]
                 prenota(inizio, att, rnd.choice(CITTADINI))
@@ -77,7 +77,7 @@ def popola(app, ora: datetime, seme: int = 37) -> None:
     g = oggi + timedelta(days=2)
     for h in range(15, 22):
         try:
-            servizio.prenota("benagiano", "tennis_singolo", datetime(g.year, g.month, g.day, h, tzinfo=TZ).isoformat(),
+            servizio.prenota("tennis_singolo", datetime(g.year, g.month, g.day, h, tzinfo=TZ).isoformat(),
                              CITTADINI[7], note="Paga allo sportello")
             break
         except ErrorePrenotazione:

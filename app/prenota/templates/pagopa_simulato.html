@@ -5,7 +5,7 @@
   <div class="alert alert-warning" role="note">Questa pagina simula il checkout pagoPA/MyPay Regione Puglia. In produzione il cittadino viene reindirizzato al checkout ufficiale.</div>
   <h1 class="h3">Pagamento pagoPA</h1>
   <dl class="row">
-    <dt class="col-5">Ente creditore</dt><dd class="col-7">Comune di Gioia del Colle</dd>
+    <dt class="col-5">Ente creditore</dt><dd class="col-7">{{ SPAZIO.comune }}</dd>
     <dt class="col-5">IUV</dt><dd class="col-7 font-monospace">{{ iuv }}</dd>
     <dt class="col-5">Importo</dt><dd class="col-7"><strong>{{ p.importo_cent|euro }}</strong></dd>
     <dt class="col-5">Causale</dt><dd class="col-7 small">Impianti sportivi – prenotazione {{ p.codice }}</dd>

@@ -11,7 +11,7 @@
       <span class="badge bg-{{ st[1] }} mb-2">{{ st[0] }}</span>
       <h1 class="h3 mb-1">{{ att.nome if att else "Prenotazione" }}</h1>
       <p class="mb-1"><strong>{{ p.inizio|data_lunga|capitalize }}</strong>, ore {{ p.inizio[11:16] }}–{{ p.fine[11:16] }}</p>
-      <p class="small text-muted">{{ impianto.nome }}</p>
+      <p class="small text-muted">{{ SPAZIO.nome }} · {{ SPAZIO.indirizzo }}</p>
       {% if qr %}
         <div class="qr mx-auto my-3" role="img" aria-label="QR code della prenotazione {{ p.codice }}">{{ qr|safe }}</div>
         <p class="small">Mostra questo QR al custode. Se non funziona, detta il codice:</p>

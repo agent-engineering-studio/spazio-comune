@@ -13,7 +13,7 @@ import io
 from datetime import datetime, timezone
 from typing import Iterable, Protocol
 
-from ..catalog import ATTIVITA, IMPIANTI
+from ..catalog import ATTIVITA
 
 
 class AgendaSync(Protocol):
@@ -48,25 +48,24 @@ def _ics_escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
 
 
-def to_ics(prenotazioni: Iterable[dict], nome: str = "Impianti sportivi") -> str:
+def to_ics(prenotazioni: Iterable[dict], nome: str = "Spazio Comune", luogo: str = "") -> str:
     now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     righe = [
         "BEGIN:VCALENDAR", "VERSION:2.0",
-        "PRODID:-//Comune di Gioia del Colle//Spazio Comune//IT",
+        "PRODID:-//Spazio Comune//IT",
         f"X-WR-CALNAME:{_ics_escape(nome)}", "X-WR-TIMEZONE:Europe/Rome",
     ]
     for p in prenotazioni:
         att = ATTIVITA.get(p["attivita"])
-        imp = IMPIANTI.get(p["impianto"])
         titolo = "BLOCCO / manutenzione" if p["stato"] == "BLOCCO" else (att.nome if att else p["attivita"])
         righe += [
             "BEGIN:VEVENT",
-            f"UID:{p['codice']}@spaziocomune.gioiadelcolle",
+            f"UID:{p['codice']}@spaziocomune",
             f"DTSTAMP:{now}",
             f"DTSTART;TZID=Europe/Rome:{_ics_dt(p['inizio'])}",
             f"DTEND;TZID=Europe/Rome:{_ics_dt(p['fine'])}",
             f"SUMMARY:{_ics_escape(titolo + ' – ' + p['codice'])}",
-            f"LOCATION:{_ics_escape(imp.indirizzo if imp else p['impianto'])}",
+            f"LOCATION:{_ics_escape(luogo)}",
             f"DESCRIPTION:{_ics_escape((att.preparazione if att else '') + ' · stato ' + p['stato'])}",
             "END:VEVENT",
         ]
@@ -74,7 +73,7 @@ def to_ics(prenotazioni: Iterable[dict], nome: str = "Impianti sportivi") -> str
     return "\r\n".join(righe) + "\r\n"
 
 
-CSV_CAMPI = ["codice", "impianto", "attivita", "inizio", "fine", "stato", "canale",
+CSV_CAMPI = ["codice", "attivita", "inizio", "fine", "stato", "canale",
              "importo_cent", "iuv", "cognome", "nome", "creata_il"]
 
 

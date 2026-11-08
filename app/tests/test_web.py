@@ -134,7 +134,7 @@ def test_ufficio_protetto_e_operativo(app_client):
     r = app_client.post("/ufficio/blocca", auth=("u", "p"), follow_redirects=False,
                         data={"inizio": "2026-11-14T16:00:00+01:00", "motivo": "Torneo scuole", "csrf_token": _csrf(r.text)})
     assert r.status_code == 303
-    assert "16:00 · occupato" in app_client.get("/?dal=2026-11-14").text
+    assert "16:00 · riservato" in app_client.get("/?dal=2026-11-14").text
 
 
 def test_custode_check_in(app_client, orologio):
@@ -150,9 +150,8 @@ def test_custode_check_in(app_client, orologio):
 
 
 def test_api_pubbliche(app_client):
-    imp = app_client.get("/api/v1/impianti").json()
-    assert imp[0]["codice"] == "benagiano" and {a["codice"] for a in imp[0]["attivita"]} == {"calcetto", "tennis_singolo", "tennis_doppio"}
-    disp = app_client.get("/api/v1/impianti/benagiano/disponibilita?giorni=3").json()
+    spazio = app_client.get("/api/v1/spazio").json()
+    assert {a["codice"] for a in spazio["attivita"]} == {"calcetto", "tennis_singolo", "tennis_doppio"}
+    disp = app_client.get("/api/v1/disponibilita?giorni=3").json()
     assert len(disp) == 3
-    assert app_client.get("/api/v1/impianti/xyz/disponibilita").status_code == 404
     assert app_client.get("/api/v1/health").json()["ia"] is True

@@ -1,4 +1,6 @@
-"""Spazio Comune – Comune di Gioia del Colle (prototipo).
+"""Spazio Comune: prenotazione di un luogo comunale (prototipo).
+
+Un'installazione gestisce un solo luogo, descritto nel file .env (SPAZIO_*, COMUNE_*).
 
 Applicazione FastAPI con interfaccia Bootstrap Italia 2.x, renderizzata lato
 server (funziona anche senza JavaScript, requisito utile per l'accessibilità).
@@ -27,7 +29,7 @@ from .adapters.identity import Cittadino, MockIdentity
 from .adapters.payments import MockPagoPA
 from .ai import AssistenteIA, filtra_slot
 from .booking import TZ, ErrorePrenotazione, ServizioPrenotazioni
-from .catalog import ATTIVITA, FONTE_TARIFFE, IMPIANTI
+from .catalog import ATTIVITA, FONTE_TARIFFE
 from .config import Settings
 from .db import Database
 
@@ -39,6 +41,10 @@ MESI_IT = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio
 STATI_LEGGIBILI = {"ATTESA_PAGAMENTO": ("In attesa di pagamento", "warning"), "CONFERMATA": ("Confermata", "success"),
                    "ANNULLATA": ("Annullata", "secondary"), "SCADUTA": ("Scaduta", "secondary"),
                    "BLOCCO": ("Riservato dall'ufficio", "dark"), "UTILIZZATA": ("Utilizzata", "primary")}
+# stato dello slot nel calendario: (etichetta, classe CSS)
+STATI_SLOT = {"libero": ("Libero", "slot-libero"), "occupato": ("Occupato", "slot-occupato"),
+              "in_pagamento": ("In pagamento", "slot-in-pagamento"), "riservato": ("Riservato", "slot-riservato"),
+              "passato": ("Passato", "slot-passato")}
 
 
 def data_lunga(v: str | date | datetime) -> str:
@@ -61,23 +67,27 @@ def qr_svg(dati: str) -> str:
 def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] | None = None,
                assistente: AssistenteIA | None = None) -> FastAPI:
     s = settings or Settings()
+    spazio = s.spazio
     db = Database(s.db_path)
     pagamenti = MockPagoPA(s.base_url) if s.payment_backend == "mock" else None
     if pagamenti is None:  # pragma: no cover
         raise RuntimeError("PAYMENT_BACKEND non supportato in questo prototipo: usare 'mock'")
     identita = MockIdentity()
     agenda = NoopAgenda()
-    servizio = ServizioPrenotazioni(db, pagamenti, agenda, s.secret_key, s.ttl_attesa_min, adesso=adesso)
-    ia = assistente or AssistenteIA(s.inference_url)
+    servizio = ServizioPrenotazioni(db, pagamenti, agenda, s.secret_key, s.ttl_attesa_min, adesso=adesso,
+                                    spazio=spazio)
+    ia = assistente or AssistenteIA(s.inference_url, spazio=spazio)
+    ia.spazio = spazio
 
-    app = FastAPI(title="Spazio Comune – Comune di Gioia del Colle", version="0.1.0",
+    app = FastAPI(title=f"Spazio Comune – {spazio.nome}", version="0.2.0",
                   docs_url="/api/docs", redoc_url=None)
     app.add_middleware(SessionMiddleware, secret_key=s.secret_key, same_site="lax",
                        https_only=s.cookie_secure, session_cookie="prenota_sess", max_age=60 * 60 * 8)
     app.mount("/static", StaticFiles(directory=QUI / "static"), name="static")
     tpl = Jinja2Templates(directory=QUI / "templates")
     tpl.env.filters.update(data_lunga=data_lunga, euro=euro)
-    tpl.env.globals.update(ATTIVITA=ATTIVITA, IMPIANTI=IMPIANTI, STATI=STATI_LEGGIBILI, FONTE_TARIFFE=FONTE_TARIFFE,
+    tpl.env.globals.update(ATTIVITA=ATTIVITA, SPAZIO=spazio, STATI=STATI_LEGGIBILI, STATI_SLOT=STATI_SLOT,
+                           FONTE_TARIFFE=FONTE_TARIFFE,
                            ICO="/static/bootstrap-italia/dist/svg/sprites.svg")
     app.state.servizio, app.state.pagamenti, app.state.settings = servizio, pagamenti, s
     basic = HTTPBasic(realm="Spazio Comune")
@@ -128,15 +138,15 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
     def contesto_home(attivita: str, dal: date | None) -> dict:
         oggi = servizio.adesso().date()
         dal = max(dal or oggi, oggi)
-        giorni = servizio.disponibilita("benagiano", dal, 7)
-        return {"impianto": IMPIANTI["benagiano"], "attivita_sel": attivita, "giorni": giorni,
+        giorni = servizio.disponibilita(dal, 7)
+        return {"attivita_sel": attivita, "giorni": giorni,
                 "dal": dal, "prec": (dal - timedelta(days=7)) if dal > oggi else None,
-                "succ": dal + timedelta(days=7) if dal + timedelta(days=7) <= oggi + timedelta(days=IMPIANTI["benagiano"].preavviso_giorni) else None}
+                "succ": dal + timedelta(days=7) if dal + timedelta(days=7) <= oggi + timedelta(days=spazio.preavviso_giorni) else None}
 
     @app.get("/", response_class=HTMLResponse)
     def home(request: Request, attivita: str = "calcetto", dal: date | None = None):
-        if attivita not in ATTIVITA:
-            attivita = "calcetto"
+        if attivita not in spazio.attivita:
+            attivita = spazio.attivita[0]
         return render(request, "home.html", contesto_home(attivita, dal))
 
     @app.post("/assistente", response_class=HTMLResponse)
@@ -144,7 +154,11 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
         verifica_csrf(request, csrf_token)
         oggi = servizio.adesso().date()
         intento = ia.interpreta(testo, oggi)
-        attivita = (intento or {}).get("attivita") or "calcetto"
+        attivita = (intento or {}).get("attivita")
+        if attivita not in spazio.attivita:
+            attivita = spazio.attivita[0]
+            if intento:
+                intento = {**intento, "attivita": attivita}
         dal = date.fromisoformat(intento["data"]) if intento and intento.get("data") else None
         ctx = contesto_home(attivita, dal)
         proposte = filtra_slot(ctx["giorni"], intento) if intento else []
@@ -154,17 +168,16 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
     def faq_post(request: Request, domanda: str = Form(..., max_length=500), csrf_token: str = Form("")):
         verifica_csrf(request, csrf_token)
         risposta = ia.faq(domanda)
-        return render(request, "home.html", {**contesto_home("calcetto", None), "domanda": domanda, "faq": risposta})
+        return render(request, "home.html", {**contesto_home(spazio.attivita[0], None), "domanda": domanda, "faq": risposta})
 
     @app.get("/prenota", response_class=HTMLResponse)
     def riepilogo(request: Request, inizio: str, attivita: str):
-        if attivita not in ATTIVITA:
+        if attivita not in spazio.attivita:
             raise ErrorePrenotazione("Attività non valida")
         if not utente(request):
             ritorno = quote(f"/prenota?inizio={quote(inizio)}&attivita={attivita}", safe="")
             return RedirectResponse(f"/auth/login?ritorno={ritorno}", status_code=303)
-        return render(request, "riepilogo.html", {"inizio": inizio, "att": ATTIVITA[attivita],
-                                                  "impianto": IMPIANTI["benagiano"]})
+        return render(request, "riepilogo.html", {"inizio": inizio, "att": ATTIVITA[attivita]})
 
     @app.post("/prenota")
     def prenota_post(request: Request, inizio: str = Form(...), attivita: str = Form(...),
@@ -174,7 +187,7 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
         u = utente(request)
         if not u:
             raise HTTPException(401, "Accesso richiesto")
-        p = servizio.prenota("benagiano", attivita, inizio, u, telefono or None, note or None)
+        p = servizio.prenota(attivita, inizio, u, telefono or None, note or None)
         p = servizio.avvia_pagamento(p["codice"], f"{s.base_url}/pagamento/esito/{p['codice']}")
         return RedirectResponse(p["url_pagamento"], status_code=303)
 
@@ -191,13 +204,12 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
         p = mia(request, codice)
         token = servizio.token_ticket(codice)
         qr = qr_svg(f"{s.base_url}/custode?token={token}") if p["stato"] in ("CONFERMATA", "UTILIZZATA") else None
-        return render(request, "ticket.html", {"p": p, "qr": qr, "att": ATTIVITA.get(p["attivita"]),
-                                               "impianto": IMPIANTI[p["impianto"]]})
+        return render(request, "ticket.html", {"p": p, "qr": qr, "att": ATTIVITA.get(p["attivita"])})
 
     @app.get("/prenotazione/{codice}/calendario.ics")
     def ticket_ics(request: Request, codice: str):
         p = mia(request, codice)
-        return Response(to_ics([p], "La mia prenotazione"), media_type="text/calendar",
+        return Response(to_ics([p], "La mia prenotazione", spazio.indirizzo), media_type="text/calendar",
                         headers={"Content-Disposition": f'attachment; filename="{codice}.ics"'})
 
     @app.post("/prenotazione/{codice}/annulla")
@@ -277,8 +289,10 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
         dal = dal or oggi
         elenco = servizio.elenco(dal, dal + timedelta(days=13))
         confermate = [p for p in elenco if p["stato"] in ("CONFERMATA", "UTILIZZATA")]
+        giorni = [{**g, "per_ora": {sl["ora"]: sl for sl in g["slot"]}} for g in servizio.occupazione(dal, 14)]
         return render(request, "ufficio.html", {
-            "elenco": elenco, "dal": dal, "giorni": servizio.disponibilita("benagiano", dal, 14),
+            "elenco": elenco, "dal": dal, "giorni": giorni,
+            "orari": sorted({sl["ora"] for g in giorni for sl in g["slot"]}),
             "incasso": sum(p["importo_cent"] for p in confermate), "n_conf": len(confermate),
             "feed": f"{s.base_url}/ufficio/agenda.ics?token={s.feed_token}"})
 
@@ -286,7 +300,7 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
     def ufficio_blocca(request: Request, inizio: str = Form(...), motivo: str = Form(...),
                        csrf_token: str = Form(""), _: str = Depends(ufficio_auth)):
         verifica_csrf(request, csrf_token)
-        servizio.blocca("benagiano", inizio, motivo)
+        servizio.blocca(inizio, motivo)
         return RedirectResponse("/ufficio", status_code=303)
 
     @app.post("/ufficio/{codice}/conferma")
@@ -312,22 +326,62 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
         if not secrets.compare_digest(token, s.feed_token):
             raise HTTPException(404)
         attive = servizio.elenco(servizio.adesso().date() - timedelta(days=7), None, ("CONFERMATA", "BLOCCO", "UTILIZZATA"))
-        return Response(to_ics(attive, "Campo via Benagiano"), media_type="text/calendar")
+        return Response(to_ics(attive, spazio.nome, spazio.indirizzo), media_type="text/calendar")
 
-    # ------------------------------------------------------------ API pubbliche (open data / app IO / riuso)
+    # ------------------------------------------------------------ API pubbliche (open data, app IO, server MCP)
+    def info_spazio() -> dict:
+        return {"nome": spazio.nome, "indirizzo": spazio.indirizzo, "comune": spazio.comune,
+                "ufficio": spazio.ufficio, "orario": spazio.orario_leggibile,
+                "durata_slot_min": spazio.durata_min, "preavviso_giorni": spazio.preavviso_giorni,
+                "fonte_tariffe": FONTE_TARIFFE,
+                "attivita": [{"codice": a, "nome": ATTIVITA[a].nome, "tariffa_cent": ATTIVITA[a].tariffa_cent,
+                              "giocatori": ATTIVITA[a].giocatori} for a in spazio.attivita],
+                "url": s.base_url}
+
     @app.get("/api/v1/health")
     def health():
         return {"stato": "ok", "ia": ia.attivo, "ora": servizio.adesso().isoformat()}
 
-    @app.get("/api/v1/impianti")
-    def api_impianti():
-        return [{"codice": i.codice, "nome": i.nome, "indirizzo": i.indirizzo,
-                 "attivita": [{"codice": a, "nome": ATTIVITA[a].nome, "tariffa_cent": ATTIVITA[a].tariffa_cent}
-                              for a in i.attivita]} for i in IMPIANTI.values()]
+    @app.get("/api/v1/spazio")
+    def api_spazio():
+        return info_spazio()
 
-    @app.get("/api/v1/impianti/{impianto}/disponibilita")
-    def api_disponibilita(impianto: str, dal: date | None = None, giorni: int = 7):
-        return servizio.disponibilita(impianto, dal, min(max(giorni, 1), 14))
+    @app.get("/api/v1/disponibilita")
+    def api_disponibilita(dal: date | None = None, giorni: int = 7):
+        return servizio.disponibilita(dal, min(max(giorni, 1), 14))
+
+    @app.get("/api/v1/assistente")
+    def api_assistente(testo: str):
+        """Dalla frase agli orari liberi: l'IA propone, la prenotazione la completa la persona."""
+        if len(testo) > 500:
+            raise ErrorePrenotazione("Testo troppo lungo (massimo 500 caratteri)")
+        intento = ia.interpreta(testo, servizio.adesso().date())
+        if intento is None:
+            return {"intento": None, "proposte": [], "messaggio": "Assistente non disponibile: usa /api/v1/disponibilita"}
+        if intento.get("attivita") not in spazio.attivita:
+            intento = {**intento, "attivita": spazio.attivita[0]}
+        dal = date.fromisoformat(intento["data"]) if intento.get("data") else None
+        proposte = filtra_slot(servizio.disponibilita(dal, 7), intento)
+        for p in proposte:
+            p["link_prenotazione"] = f"{s.base_url}/prenota?inizio={quote(p['inizio'])}&attivita={intento['attivita']}"
+        return {"intento": intento, "proposte": proposte}
+
+    @app.get("/api/v1/faq")
+    def api_faq(domanda: str):
+        if len(domanda) > 500:
+            raise ErrorePrenotazione("Domanda troppo lunga (massimo 500 caratteri)")
+        return ia.faq(domanda) or {"trovata": False, "risposta": None, "fonti": []}
+
+    # API riservate all'ufficio (Basic auth): occupazione con numeri di prenotazione
+    @app.get("/api/v1/ufficio/occupazione")
+    def api_occupazione(dal: date | None = None, giorni: int = 7, _: str = Depends(ufficio_auth)):
+        return servizio.occupazione(dal, min(max(giorni, 1), 14))
+
+    @app.get("/api/v1/ufficio/prenotazioni/{codice}")
+    def api_prenotazione(codice: str, _: str = Depends(ufficio_auth)):
+        p = servizio._riga(codice.strip().upper())
+        return {k: p[k] for k in ("codice", "attivita", "inizio", "fine", "stato", "canale", "importo_cent",
+                                  "iuv", "cognome", "nome", "note", "creata_il")}
 
     return app
 # Avvio: uvicorn --factory prenota.main:create_app

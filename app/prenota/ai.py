@@ -10,14 +10,15 @@ from datetime import date
 
 import httpx
 
-from .catalog import ATTIVITA, FONTE_TARIFFE, IMPIANTI
+from .catalog import ATTIVITA, FONTE_TARIFFE, Spazio
 
 log = logging.getLogger("prenota.ai")
 
 
-def base_conoscenza() -> list[dict]:
-    imp = IMPIANTI["benagiano"]
-    tariffe = "; ".join(f"{a.nome}: {a.tariffa_eur} euro totali a slot da 60 minuti" for a in ATTIVITA.values())
+def base_conoscenza(spazio: Spazio) -> list[dict]:
+    imp = spazio
+    attivita = [ATTIVITA[a] for a in imp.attivita]
+    tariffe = "; ".join(f"{a.nome}: {a.tariffa_eur} euro totali a slot da {imp.durata_min} minuti" for a in attivita)
     return [
         {"id": "tariffe", "titolo": "Tariffe costi prezzi quanto costa pagare",
          "testo": f"Tariffe in vigore ({FONTE_TARIFFE}): {tariffe}. L'importo è per l'intero gruppo, non a persona."},
@@ -30,24 +31,26 @@ def base_conoscenza() -> list[dict]:
          "testo": "Al campo basta mostrare il QR code della prenotazione sullo smartphone al custode. Non serve stampare nulla."},
         {"id": "annullamento", "titolo": "Annullare disdire cancellare rimborso spostare",
          "testo": "Puoi annullare online dall'area 'Le mie prenotazioni' fino a 24 ore prima. Per annullamenti "
-                  "successivi o rimborsi contatta l'Ufficio Cultura, Istruzione e Sport."},
+                  "successivi o rimborsi contatta l'" + imp.ufficio + "."},
         {"id": "orari", "titolo": "Orari apertura giorni disponibili quando",
-         "testo": f"Il {imp.nome} è prenotabile a slot di 60 minuti, fino a {imp.preavviso_giorni} giorni prima. "
+         "testo": f"{imp.nome}: {imp.orario_leggibile}, prenotabile fino a {imp.preavviso_giorni} giorni prima. "
                   "Gli orari disponibili sono sempre quelli mostrati nel calendario, che l'ufficio aggiorna per chiusure e manutenzioni."},
-        {"id": "dove", "titolo": "Dove si trova indirizzo campo coperto",
-         "testo": f"{imp.nome}, {imp.indirizzo}. Il campo è coperto e ospita calcetto e tennis."},
+        {"id": "dove", "titolo": "Dove si trova indirizzo luogo campo",
+         "testo": f"{imp.nome}, {imp.indirizzo}."},
         {"id": "attivita", "titolo": "Sport attività calcetto tennis singolo doppio giocatori",
-         "testo": "Si può prenotare calcetto (fino a 10 giocatori), tennis singolo (2) o tennis doppio (4). "
-                  "Scegliendo l'attività il custode saprà già se montare porte o rete."},
+         "testo": "Si può prenotare: " + ", ".join(f"{a.nome} ({a.giocatori} giocatori)" for a in attivita) + ". "
+                  "Scegliendo l'attività il custode saprà già come preparare il campo."},
         {"id": "privacy", "titolo": "Privacy dati personali trattamento",
-         "testo": "I dati sono trattati dal Comune di Gioia del Colle per gestire la prenotazione e il pagamento "
+         "testo": f"I dati sono trattati dal {imp.comune} per gestire la prenotazione e il pagamento "
                   "(art. 6.1.e GDPR, esecuzione di un compito di interesse pubblico). L'assistente IA non riceve i tuoi dati personali."},
     ]
 
 
 class AssistenteIA:
-    def __init__(self, base_url: str | None, timeout: float = 8.0, client: httpx.Client | None = None):
+    def __init__(self, base_url: str | None, timeout: float = 8.0, client: httpx.Client | None = None,
+                 spazio: Spazio | None = None):
         self.base_url = (base_url or "").rstrip("/")
+        self.spazio = spazio or Spazio()
         self._client = client or httpx.Client(timeout=timeout)
 
     @property
@@ -70,7 +73,7 @@ class AssistenteIA:
             return None
         try:
             r = self._client.post(f"{self.base_url}/v1/tasks/faq",
-                                  json={"domanda": domanda, "documenti": base_conoscenza()})
+                                  json={"domanda": domanda, "documenti": base_conoscenza(self.spazio)})
             r.raise_for_status()
             return r.json()
         except Exception as e:

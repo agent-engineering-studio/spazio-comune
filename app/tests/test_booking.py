@@ -7,7 +7,7 @@ VEN_20 = "2026-11-13T20:00:00+01:00"
 
 
 def test_calendario_settimanale(servizio):
-    giorni = servizio.disponibilita("benagiano", giorni=7)
+    giorni = servizio.disponibilita(giorni=7)
     assert [g["data"] for g in giorni][0] == "2026-11-09"
     lunedi, domenica = giorni[0], giorni[6]
     assert len(lunedi["slot"]) == 7 and domenica["slot"] == []
@@ -15,29 +15,29 @@ def test_calendario_settimanale(servizio):
 
 
 def test_finestra_di_prenotabilita(servizio):
-    giorni = servizio.disponibilita("benagiano", giorni=30)
+    giorni = servizio.disponibilita(giorni=30)
     assert len(giorni) == 15  # oggi + 14 giorni
 
 
 def test_prenotazione_e_doppia_prenotazione(servizio, mario, anna):
-    p = servizio.prenota("benagiano", "calcetto", VEN_20, mario)
+    p = servizio.prenota("calcetto", VEN_20, mario)
     assert p["stato"] == "ATTESA_PAGAMENTO" and p["importo_cent"] == 4000
     with pytest.raises(ErrorePrenotazione) as e:
-        servizio.prenota("benagiano", "tennis_singolo", VEN_20, anna)
+        servizio.prenota("tennis_singolo", VEN_20, anna)
     assert e.value.codice_http == 409
-    venerdi = next(g for g in servizio.disponibilita("benagiano") if g["data"] == "2026-11-13")
+    venerdi = next(g for g in servizio.disponibilita() if g["data"] == "2026-11-13")
     assert not next(s for s in venerdi["slot"] if s["ora"] == "20:00")["libero"]
 
 
 def test_attesa_scade_e_libera_lo_slot(servizio, mario, anna, orologio):
-    servizio.prenota("benagiano", "calcetto", VEN_20, mario)
+    servizio.prenota("calcetto", VEN_20, mario)
     orologio.avanza(minutes=16)
-    p = servizio.prenota("benagiano", "calcetto", VEN_20, anna)
+    p = servizio.prenota("calcetto", VEN_20, anna)
     assert p["cognome"] == "Bianchi"
 
 
 def test_pagamento_conferma_e_pubblica_in_agenda(servizio, mario):
-    p = servizio.prenota("benagiano", "tennis_doppio", VEN_20, mario)
+    p = servizio.prenota("tennis_doppio", VEN_20, mario)
     p = servizio.avvia_pagamento(p["codice"], "http://test/esito")
     assert p["iuv"] and p["url_pagamento"]
     assert servizio.verifica_pagamento(p["codice"])["stato"] == "ATTESA_PAGAMENTO"
@@ -49,18 +49,18 @@ def test_pagamento_conferma_e_pubblica_in_agenda(servizio, mario):
 
 
 def test_pagamento_tardivo_su_slot_ripreso(servizio, mario, anna, orologio):
-    p = servizio.avvia_pagamento(servizio.prenota("benagiano", "calcetto", VEN_20, mario)["codice"], "x")
+    p = servizio.avvia_pagamento(servizio.prenota("calcetto", VEN_20, mario)["codice"], "x")
     orologio.avanza(minutes=20)
-    servizio.prenota("benagiano", "calcetto", VEN_20, anna)
+    servizio.prenota("calcetto", VEN_20, anna)
     servizio.pagamenti.segna_pagato(p["iuv"])
     with pytest.raises(ErrorePrenotazione, match="rimborso"):
         servizio.verifica_pagamento(p["codice"])
 
 
 def test_pagamento_tardivo_su_slot_ancora_libero(servizio, mario, orologio):
-    p = servizio.avvia_pagamento(servizio.prenota("benagiano", "calcetto", VEN_20, mario)["codice"], "x")
+    p = servizio.avvia_pagamento(servizio.prenota("calcetto", VEN_20, mario)["codice"], "x")
     orologio.avanza(minutes=20)
-    servizio.disponibilita("benagiano")  # forza la scadenza
+    servizio.disponibilita()  # forza la scadenza
     servizio.pagamenti.segna_pagato(p["iuv"])
     assert servizio.verifica_pagamento(p["codice"])["stato"] == "CONFERMATA"
 
@@ -75,19 +75,16 @@ def test_pagamento_tardivo_su_slot_ancora_libero(servizio, mario, orologio):
 ])
 def test_orari_non_validi(servizio, mario, inizio, messaggio):
     with pytest.raises(ErrorePrenotazione, match=messaggio):
-        servizio.prenota("benagiano", "calcetto", inizio, mario)
+        servizio.prenota("calcetto", inizio, mario)
 
 
-def test_attivita_e_impianto_non_validi(servizio, mario):
-    with pytest.raises(ErrorePrenotazione):
-        servizio.prenota("benagiano", "nuoto", VEN_20, mario)
-    with pytest.raises(ErrorePrenotazione) as e:
-        servizio.prenota("stadio", "calcetto", VEN_20, mario)
-    assert e.value.codice_http == 404
+def test_attivita_non_valida(servizio, mario):
+    with pytest.raises(ErrorePrenotazione, match="Attività non disponibile"):
+        servizio.prenota("nuoto", VEN_20, mario)
 
 
 def _confermata(servizio, cittadino, inizio=VEN_20):
-    p = servizio.avvia_pagamento(servizio.prenota("benagiano", "calcetto", inizio, cittadino)["codice"], "x")
+    p = servizio.avvia_pagamento(servizio.prenota("calcetto", inizio, cittadino)["codice"], "x")
     servizio.pagamenti.segna_pagato(p["iuv"])
     return servizio.verifica_pagamento(p["codice"])
 
@@ -104,18 +101,18 @@ def test_annullamento_regola_24_ore(servizio, mario, orologio):
 def test_annullamento_libera_lo_slot(servizio, mario, anna):
     p = _confermata(servizio, mario)
     servizio.annulla(p["codice"])
-    assert servizio.prenota("benagiano", "calcetto", VEN_20, anna)["stato"] == "ATTESA_PAGAMENTO"
+    assert servizio.prenota("calcetto", VEN_20, anna)["stato"] == "ATTESA_PAGAMENTO"
 
 
 def test_blocco_ufficio(servizio, mario):
-    b = servizio.blocca("benagiano", VEN_20, "Manutenzione impianto luci")
+    b = servizio.blocca(VEN_20, "Manutenzione impianto luci")
     assert b["stato"] == "BLOCCO" and b["importo_cent"] == 0
     with pytest.raises(ErrorePrenotazione):
-        servizio.prenota("benagiano", "calcetto", VEN_20, mario)
+        servizio.prenota("calcetto", VEN_20, mario)
 
 
 def test_conferma_manuale_sportello(servizio, mario):
-    p = servizio.prenota("benagiano", "calcetto", VEN_20, mario)
+    p = servizio.prenota("calcetto", VEN_20, mario)
     c = servizio.conferma_manuale(p["codice"], "RICEVUTA-123")
     assert c["stato"] == "CONFERMATA" and c["iuv"] == "RICEVUTA-123"
     with pytest.raises(ErrorePrenotazione):
@@ -144,5 +141,5 @@ def test_export_ics_e_csv(servizio, mario):
     assert "BEGIN:VEVENT" in ics and "DTSTART;TZID=Europe/Rome:20261113T200000" in ics
     assert "Montare porte calcetto" in ics and ics.endswith("\r\n")
     csv = to_csv([p])
-    assert csv.splitlines()[0].startswith("codice;impianto") and p["iuv"] in csv
+    assert csv.splitlines()[0].startswith("codice;attivita") and p["iuv"] in csv
     assert "RSSMRA80A01E038X" not in csv  # il CF non va nell'export per la ragioneria

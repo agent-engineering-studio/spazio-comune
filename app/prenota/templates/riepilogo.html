@@ -9,7 +9,7 @@
       <h2 class="h5">{{ att.nome }}</h2>
       <dl class="row mb-0">
         <dt class="col-sm-4">Quando</dt><dd class="col-sm-8">{{ inizio|data_lunga|capitalize }}, ore {{ inizio[11:16] }} (60 minuti)</dd>
-        <dt class="col-sm-4">Dove</dt><dd class="col-sm-8">{{ impianto.nome }}<br><span class="small text-muted">{{ impianto.indirizzo }}</span></dd>
+        <dt class="col-sm-4">Dove</dt><dd class="col-sm-8">{{ SPAZIO.nome }}<br><span class="small text-muted">{{ SPAZIO.indirizzo }}</span></dd>
         <dt class="col-sm-4">Intestatario</dt><dd class="col-sm-8">{{ utente.nome }} {{ utente.cognome }} <span class="small text-muted">({{ utente.metodo }})</span></dd>
         <dt class="col-sm-4">Importo</dt><dd class="col-sm-8"><strong>€ {{ att.tariffa_eur }}</strong> <span class="small text-muted">totale per il gruppo</span></dd>
       </dl>

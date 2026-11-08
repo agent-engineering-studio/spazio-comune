@@ -1,6 +1,6 @@
 ---
 title: Spazio Comune
-description: Prenotazione online degli impianti sportivi comunali con SPID/CIE, pagoPA, QR code e assistente IA.
+description: Prenotazione online di un luogo comunale con SPID/CIE, pagoPA, QR code, assistente IA e server MCP.
 ---
 
 <div class="hero" markdown>
@@ -10,6 +10,8 @@ description: Prenotazione online degli impianti sportivi comunali con SPID/CIE, 
 Prenotare il campo comunale in **4 passaggi su un solo portale**, pagando **dopo** aver scelto l'orario,
 con un **assistente IA** che trova gli orari partendo da una frase.
 Pilota proposto: campo coperto di via Benagiano, Comune di Gioia del Colle.
+
+**Un'installazione = un luogo**, configurato nel file `.env`. Per più luoghi, una copia per ciascuno.
 
 </div>
 
@@ -46,10 +48,11 @@ Pilota proposto: campo coperto di via Benagiano, Comune di Gioia del Colle.
 
     ---
 
-    Installazione con Docker, configurazione, server IA, e checklist per la messa in esercizio secondo le
-    norme ICT della PA.
+    Schema architetturale, installazione con Docker, configurazione `.env` per sviluppo e produzione, server IA,
+    server MCP per altri agenti, e checklist per la messa in esercizio secondo le norme ICT della PA.
 
-    [:octicons-arrow-right-24: Installazione](installazione.md) ·
+    [:octicons-arrow-right-24: Architettura](architettura.md) ·
+    [Installazione](installazione.md) · [Server MCP](mcp.md) ·
     [Installazione conforme PA](normativa-it.md)
 
 </div>
@@ -64,8 +67,8 @@ Pilota proposto: campo coperto di via Benagiano, Comune di Gioia del Colle.
 
 !!! abstract "Per il Comune e l'IT"
     Motore predefinito **offline, senza GPU**, nessun dato a terzi. LLM locale o cloud opzionale, con
-    redazione dei dati personali, trasparenza (AI Act art. 50) e degrado controllato.
-    [Approfondisci](intelligenza-artificiale.md).
+    redazione dei dati personali, trasparenza (AI Act art. 50) e degrado controllato. Un **server MCP** apre il
+    luogo ad altri sistemi agentici. [Approfondisci](intelligenza-artificiale.md) · [MCP](mcp.md).
 
 </div>
 

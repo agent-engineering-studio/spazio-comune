@@ -1,0 +1,8 @@
+mcp==1.12.4
+httpx==0.28.1
+# versioni provate insieme a mcp 1.12.4 (pydantic più recenti rompono l'import di FastMCP)
+pydantic==2.11.4
+pydantic-settings==2.16.2
+starlette==0.46.2
+sse-starlette==3.0.3
+uvicorn==0.34.2

@@ -108,6 +108,12 @@ docker exec spazio-comune-app python -c "import httpx; print(httpx.post(
 | `POST /v1/tasks/faq` | domanda + documenti → risposta fondata **solo** sui documenti, con `fonti` |
 | `POST /v1/chat/completions` | compatibilità OpenAI: proxy verso l'LLM, con redazione dei dati personali |
 
+### Per altri sistemi agentici: il server MCP
+
+Gli stessi strumenti (orari liberi da una frase, FAQ con fonte, calendario) sono disponibili ad agenti esterni
+tramite il [server MCP](mcp.md), con la stessa regola: l'agente propone e restituisce un link, la persona
+prenota e paga.
+
 ## Garanzie scritte nel codice
 
 Ogni garanzia è verificata da test automatici (`inference/tests/test_inference.py`, `app/tests/test_web.py`).

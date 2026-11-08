@@ -22,7 +22,7 @@ Bootstrap Italia, MyPay di Regione Puglia, SPID e CIE.
 | **Ogni ora è vendibile** | Gli slot liberi sono visibili fino all'ultimo momento; quelli non pagati tornano liberi dopo 15 minuti. |
 | **Incassi riconciliati** | Ogni prenotazione ha il suo codice IUV pagoPA: niente verifica a vista dei PDF, niente errori di abbinamento. |
 | **Nessun rimborso per orari occupati** | Si paga dopo aver scelto, quindi spariscono i rimborsi per orari già presi. |
-| **Riuso senza nuovo sviluppo** | Un nuovo impianto è una scheda di configurazione; il codice è open source (EUPL-1.2) e riusabile da altri Comuni. |
+| **Riuso senza nuovo sviluppo** | Un nuovo luogo è una copia del repository con il suo `.env` (nome, indirizzo, orari, attività); il codice è open source (EUPL-1.2) e riusabile da altri Comuni. |
 
 ### Stima delle entrate (illustrativa)
 

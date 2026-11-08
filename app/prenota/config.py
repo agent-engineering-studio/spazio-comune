@@ -4,6 +4,8 @@ import os
 import secrets
 from dataclasses import dataclass, field
 
+from .catalog import Spazio
+
 
 def _env(nome: str, default: str | None = None) -> str | None:
     v = os.getenv(nome)
@@ -23,4 +25,5 @@ class Settings:
     custode_password: str = field(default_factory=lambda: _env("CUSTODE_PASSWORD", "custode"))
     feed_token: str = field(default_factory=lambda: _env("FEED_TOKEN") or secrets.token_urlsafe(16))
     ttl_attesa_min: int = field(default_factory=lambda: int(_env("TTL_ATTESA_MIN", "15")))
+    spazio: Spazio = field(default_factory=Spazio.da_env)
     cookie_secure: bool = field(default_factory=lambda: _env("COOKIE_SECURE", "false") == "true")
