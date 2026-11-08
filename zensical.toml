@@ -1,0 +1,92 @@
+# Sito di documentazione (Zensical) pubblicato su GitHub Pages da .github/workflows/docs.yml
+#   zensical serve     anteprima su http://localhost:8000 (fermare prima il container app, o usare -a 127.0.0.1:8002)
+#   zensical build     genera ./site
+
+[project]
+site_name = "Spazio Comune"
+site_description = "Prenotazione online degli impianti sportivi comunali con SPID/CIE, pagoPA, QR code e assistente IA"
+site_author = "Giuseppe Zileni"
+site_url = "https://agent-engineering-studio.github.io/spazio-comune/"
+repo_url = "https://github.com/agent-engineering-studio/spazio-comune"
+repo_name = "agent-engineering-studio/spazio-comune"
+edit_uri = "edit/main/docs/"
+copyright = "Proposta indipendente per il Comune di Gioia del Colle · codice EUPL-1.2 · dati della demo fittizi"
+docs_dir = "docs"
+extra_css = ["stylesheets/extra.css"]
+
+nav = [
+  { "Home" = "index.md" },
+  { "Cittadini" = [
+    { "Prenotare in 4 passi" = "cittadini.md" },
+  ] },
+  { "Comune" = [
+    { "Benefici per il Comune" = "comune.md" },
+    { "Conformità normativa" = "conformita.md" },
+    { "Analisi e proposta" = "ANALISI.md" },
+  ] },
+  { "Sviluppatori e IT" = [
+    { "Installazione" = "installazione.md" },
+    { "Configurazione (.env)" = "configurazione.md" },
+    { "Intelligenza artificiale" = "intelligenza-artificiale.md" },
+    { "Architettura" = "architettura.md" },
+    { "Installazione conforme PA" = "normativa-it.md" },
+    { "Video e demo" = "video.md" },
+  ] },
+]
+
+[project.theme]
+language = "it"
+features = [
+  "content.code.annotate",
+  "content.code.copy",
+  "content.tabs.link",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "content.action.edit",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Passa al tema scuro"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Passa al tema chiaro"
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+tables = {}
+toc.permalink = true
+pymdownx.betterem = {}
+pymdownx.details = {}
+pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
+pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+pymdownx.highlight.anchor_linenums = true
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.keys = {}
+pymdownx.mark = {}
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tabbed.alternate_style = true
+pymdownx.tasklist.custom_checkbox = true

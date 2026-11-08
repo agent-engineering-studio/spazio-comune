@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block titolo %}Pagamento in verifica{% endblock %}
+{% block main %}
+<h1>Stiamo aspettando l'esito del pagamento</h1>
+<p>Prenotazione <strong class="font-monospace">{{ p.codice }}</strong>. Se hai già pagato, l'esito arriva di solito in pochi secondi.</p>
+<div class="d-flex gap-2">
+  <a class="btn btn-primary" href="/pagamento/esito/{{ p.codice }}">Verifica di nuovo</a>
+  {% if p.url_pagamento %}<a class="btn btn-outline-primary" href="{{ p.url_pagamento }}">Torna a pagoPA</a>{% endif %}
+</div>
+{% endblock %}

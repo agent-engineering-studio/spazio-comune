@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block titolo %}Ufficio Sport{% endblock %}
+{% block main %}
+<h1 class="h2">Ufficio Cultura, Istruzione e Sport</h1>
+<div class="row g-3 mb-4">
+  <div class="col-sm-4"><div class="card shadow-sm"><div class="card-body">
+    <p class="small text-muted mb-1">Prenotazioni pagate (14 giorni)</p><p class="h3 mb-0">{{ n_conf }}</p></div></div></div>
+  <div class="col-sm-4"><div class="card shadow-sm"><div class="card-body">
+    <p class="small text-muted mb-1">Incassato via pagoPA</p><p class="h3 mb-0">{{ incasso|euro }}</p></div></div></div>
+  <div class="col-sm-4"><div class="card shadow-sm"><div class="card-body">
+    <p class="small text-muted mb-1">Esporta</p>
+    <a href="/ufficio/export.csv" class="btn btn-outline-primary btn-sm me-1 mb-1">CSV per ragioneria</a>
+    <a href="{{ feed }}" class="btn btn-outline-primary btn-sm mb-1">Calendario (iCal)</a></div></div></div>
+</div>
+
+<h2 class="h4">Riserva uno slot (manutenzione, società sportive, eventi)</h2>
+<form method="post" action="/ufficio/blocca" class="row g-2 align-items-end mb-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <div class="col-md-5"><label for="inizio" class="form-label small">Slot</label>
+    <select id="inizio" name="inizio" class="form-select" required>
+    {% for g in giorni %}{% for s in g.slot if s.libero %}
+      <option value="{{ s.inizio }}">{{ g.data|data_lunga }} {{ s.ora }}</option>
+    {% endfor %}{% endfor %}
+    </select></div>
+  <div class="col-md-5"><label for="motivo" class="form-label small">Motivo</label>
+    <input id="motivo" name="motivo" class="form-control border" required maxlength="280" placeholder="es. manutenzione impianto luci"></div>
+  <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Riserva</button></div>
+</form>
+
+<h2 class="h4">Prenotazioni</h2>
+<div class="table-responsive">
+<table class="table table-sm align-middle">
+  <caption class="visually-hidden">Prenotazioni dei prossimi 14 giorni</caption>
+  <thead><tr><th scope="col">Quando</th><th scope="col">Attività</th><th scope="col">Intestatario</th><th scope="col">Stato</th><th scope="col">IUV</th><th scope="col">Azioni</th></tr></thead>
+  <tbody>
+  {% for p in elenco if p.stato not in ("SCADUTA",) %}{% set st = STATI[p.stato] %}
+    <tr>
+      <td>{{ p.inizio[8:10] }}/{{ p.inizio[5:7] }} {{ p.inizio[11:16] }}</td>
+      <td>{{ ATTIVITA[p.attivita].nome if p.attivita in ATTIVITA else "Riservato: " ~ p.note }}</td>
+      <td>{{ (p.cognome or "") ~ " " ~ (p.nome or "") }}<br><span class="small font-monospace">{{ p.codice }}</span></td>
+      <td><span class="badge bg-{{ st[1] }}">{{ st[0] }}</span> <span class="small">{{ p.canale }}</span></td>
+      <td class="small font-monospace">{{ p.iuv or "" }}</td>
+      <td class="d-flex gap-1">
+        {% if p.stato == "ATTESA_PAGAMENTO" %}
+        <form method="post" action="/ufficio/{{ p.codice }}/conferma" class="d-flex gap-1">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <label class="visually-hidden" for="rif-{{ p.codice }}">Riferimento pagamento</label>
+          <input id="rif-{{ p.codice }}" name="riferimento" class="form-control form-control-sm" placeholder="Rif. ricevuta" required>
+          <button class="btn btn-success btn-sm">Conferma</button>
+        </form>
+        {% endif %}
+        {% if p.stato in ("ATTESA_PAGAMENTO", "CONFERMATA", "BLOCCO") %}
+        <form method="post" action="/ufficio/{{ p.codice }}/annulla">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <button class="btn btn-outline-danger btn-sm">Annulla</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}<tr><td colspan="6">Nessuna prenotazione nel periodo.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

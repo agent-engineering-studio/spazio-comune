@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titolo %}Prenotazione {{ p.codice }}{% endblock %}
+{% block main %}
+{% set st = STATI[p.stato] %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    {% if p.stato == "CONFERMATA" %}
+      <div class="alert alert-success" role="status"><strong>Prenotazione confermata.</strong> Il pagamento pagoPA è stato registrato.</div>
+    {% endif %}
+    <div class="card shadow ticket text-center"><div class="card-body">
+      <span class="badge bg-{{ st[1] }} mb-2">{{ st[0] }}</span>
+      <h1 class="h3 mb-1">{{ att.nome if att else "Prenotazione" }}</h1>
+      <p class="mb-1"><strong>{{ p.inizio|data_lunga|capitalize }}</strong>, ore {{ p.inizio[11:16] }}–{{ p.fine[11:16] }}</p>
+      <p class="small text-muted">{{ impianto.nome }}</p>
+      {% if qr %}
+        <div class="qr mx-auto my-3" role="img" aria-label="QR code della prenotazione {{ p.codice }}">{{ qr|safe }}</div>
+        <p class="small">Mostra questo QR al custode. Se non funziona, detta il codice:</p>
+      {% endif %}
+      <p class="h4 font-monospace">{{ p.codice }}</p>
+      <p class="small text-muted mb-0">Pagato {{ p.importo_cent|euro }} · IUV {{ p.iuv or "—" }}</p>
+    </div></div>
+    <div class="d-flex flex-wrap gap-2 justify-content-center mt-3">
+      <a class="btn btn-outline-primary" href="/prenotazione/{{ p.codice }}/calendario.ics">Aggiungi al calendario</a>
+      <a class="btn btn-outline-primary" href="/mie-prenotazioni">Le mie prenotazioni</a>
+      {% if p.stato in ("CONFERMATA", "ATTESA_PAGAMENTO") %}
+      <form method="post" action="/prenotazione/{{ p.codice }}/annulla">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <button class="btn btn-outline-danger" type="submit">Annulla</button>
+      </form>
+      {% endif %}
+    </div>
+    {% if att %}<p class="small text-muted text-center mt-3">Il custode è già avvisato: {{ att.preparazione|lower }}.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

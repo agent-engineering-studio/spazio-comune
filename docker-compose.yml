@@ -1,0 +1,85 @@
+# Spazio Comune – Comune di Gioia del Colle
+#
+#   docker compose up --build                       app + server di inferenza (backend "rules", offline)
+#   docker compose --profile test run --rm test     suite pytest
+#   docker compose --profile llm up --build         + LLM locale con Ollama (modello piccolo, CPU)
+#   docker compose --profile demo up --build -d     + istanza demo con dati fittizi su :8001
+#
+name: spazio-comune
+
+services:
+  app:
+    container_name: spazio-comune-app
+    build: ./app
+    ports: ["8000:8000"]
+    env_file: [.env]
+    environment:
+      INFERENCE_URL: http://inference:8080
+      DB_PATH: /data/prenota.db
+    volumes: ["dati:/data"]
+    depends_on:
+      inference:
+        condition: service_healthy
+    restart: unless-stopped
+
+  inference:
+    container_name: spazio-comune-inference
+    build: ./inference
+    environment:
+      INFERENCE_BACKEND: ${INFERENCE_BACKEND:-rules}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:1.5b-instruct}
+      LLM_API_KEY: ${LLM_API_KEY:-ollama}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-20}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    expose: ["8080"]          # non pubblicato: raggiungibile solo dall'app
+    restart: unless-stopped
+
+  # --- LLM locale opzionale (nessun dato fuori dal server del Comune)
+  ollama:
+    container_name: spazio-comune-ollama
+    image: ollama/ollama:0.12.11
+    profiles: ["llm"]
+    volumes: ["modelli:/root/.ollama"]
+    expose: ["11434"]
+
+  ollama-pull:
+    container_name: spazio-comune-ollama-pull
+    image: ollama/ollama:0.12.11
+    profiles: ["llm"]
+    depends_on: [ollama]
+    environment: { OLLAMA_HOST: "ollama:11434" }
+    entrypoint: ["sh", "-c", "sleep 3 && ollama pull ${LLM_MODEL:-qwen2.5:1.5b-instruct}"]
+    restart: "no"
+
+  # --- istanza dimostrativa: orologio fisso (lun 9/11/2026 18:35) e cittadini inventati
+  demo:
+    container_name: spazio-comune-demo
+    build: ./app
+    profiles: ["demo"]
+    command: ["python", "scripts/demo.py"]
+    ports: ["8001:8000"]
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8000"
+      BASE_URL: http://localhost:8001
+      DB_PATH: /data/demo.db
+      INFERENCE_URL: http://inference:8080
+      SECRET_KEY: demo-non-usare-in-produzione
+      FEED_TOKEN: demo
+      DEMO_ORA: ${DEMO_ORA:-2026-11-09T18:35:00}
+    depends_on:
+      inference:
+        condition: service_healthy
+
+  # --- test
+  test:
+    container_name: spazio-comune-test
+    build:
+      context: .
+      dockerfile: tests.Dockerfile
+    profiles: ["test"]
+
+volumes:
+  dati:
+  modelli:

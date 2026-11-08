@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.db
+*.db-wal
+*.db-shm
+.env
+docs/demo/grezzi/
+site/
+.DS_Store

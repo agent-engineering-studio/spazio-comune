@@ -1,0 +1,47 @@
+publiccodeYmlVersion: "0.4"
+name: Spazio Comune
+url: "https://github.com/agent-engineering-studio/spazio-comune.git"
+landingURL: "https://agent-engineering-studio.github.io/spazio-comune/"
+releaseDate: "2026-11-08"
+softwareVersion: "0.1.0"
+platforms: [web]
+categories: [booking-management, online-payments]
+developmentStatus: development
+softwareType: standalone/web
+description:
+  it:
+    shortDescription: Prenotazione degli spazi comunali con SPID/CIE, pagoPA, QR e assistente IA
+    longDescription: >
+      Applicazione web per la prenotazione degli impianti sportivi comunali. Il cittadino sceglie
+      sport e orario su un calendario settimanale o descrivendo la richiesta in linguaggio naturale,
+      accede con SPID o CIE, paga con pagoPA tramite l'intermediario regionale MyPay e riceve un
+      QR code da mostrare al custode. L'ufficio gestisce riserve, pagamenti allo sportello ed export
+      contabili senza cambiare il proprio modo di lavorare. Interfaccia Bootstrap Italia, conforme
+      alle linee guida di design per i servizi digitali della PA. Include un server di inferenza
+      OpenAI-compatibile con backend deterministico offline e supporto opzionale a LLM locali.
+    features:
+      - Calendario settimanale accessibile degli slot liberi
+      - Assistente IA per la ricerca di orari e FAQ con fonti
+      - Pagamento pagoPA contestuale alla prenotazione
+      - QR code firmato per il controllo accessi
+      - Back-office con export CSV e feed iCal
+legal:
+  license: EUPL-1.2
+  mainCopyrightOwner: Agent Engineering Studio
+  repoOwner: Agent Engineering Studio
+maintenance:
+  type: internal
+  contacts:
+    - name: Giuseppe Zileni
+localisation:
+  localisationReady: false
+  availableLanguages: [it]
+it:
+  countryExtensionVersion: "1.0"
+  conforme:
+    lineeGuidaDesign: true
+    gdpr: true
+  piattaforme:
+    spid: true
+    cie: true
+    pagopa: true

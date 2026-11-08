@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block titolo %}Prenota il campo di via Benagiano{% endblock %}
+{% block main %}
+<nav class="breadcrumb-container" aria-label="Percorso di navigazione">
+  <ol class="breadcrumb p-0">
+    <li class="breadcrumb-item"><a href="https://www.comune.gioiadelcolle.ba.it/">Home</a><span class="separator">/</span></li>
+    <li class="breadcrumb-item"><a href="https://www.comune.gioiadelcolle.ba.it/area_eagenda_servizi/pagsistema.html">Prenota appuntamento</a><span class="separator">/</span></li>
+    <li class="breadcrumb-item active" aria-current="page">Impianti sportivi</li>
+  </ol>
+</nav>
+
+<div class="row">
+  <div class="col-lg-8">
+    <h1 class="titolo-pagina">Prenota il {{ impianto.nome|replace("Campo comunale coperto", "campo coperto") }}</h1>
+    <p class="lead">Scegli sport e orario, paga con pagoPA e al campo mostra il QR code. Nessuna ricevuta da caricare o stampare.</p>
+  </div>
+</div>
+
+<ol class="percorso list-unstyled d-none d-md-flex flex-wrap gap-2 my-3" aria-label="Come funziona">
+  <li class="chip chip-simple chip-primary"><span class="chip-label">1 · Scegli l'orario</span></li>
+  <li class="chip chip-simple"><span class="chip-label">2 · Accedi con SPID o CIE</span></li>
+  <li class="chip chip-simple"><span class="chip-label">3 · Paga con pagoPA</span></li>
+  <li class="chip chip-simple"><span class="chip-label">4 · Mostra il QR al custode</span></li>
+</ol>
+
+{% if ia_attiva %}
+<section class="card-wrapper card-space mb-4" aria-labelledby="titolo-assistente">
+  <div class="card card-bg no-after assistente">
+    <div class="card-body">
+      <h2 id="titolo-assistente" class="h4 card-title">Dimmi cosa vuoi fare</h2>
+      <form method="post" action="/assistente" class="row g-2 align-items-end mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <div class="col-md-9">
+          <div class="form-group mb-0">
+            <label for="testo" class="active">Scrivi come lo diresti a un operatore</label>
+            <input type="text" class="form-control" id="testo" name="testo" maxlength="500" required
+                   value="{{ richiesta or '' }}" placeholder="es. calcetto venerdì sera alle 20" autocomplete="off">
+          </div>
+        </div>
+        <div class="col-md-3"><button class="btn btn-primary w-100" type="submit">Trova orari</button></div>
+      </form>
+      <p class="small text-muted mt-2 mb-0">
+        <svg class="icon icon-xs" aria-hidden="true"><use href="{{ ICO }}#it-info-circle"></use></svg>
+        Assistente basato su intelligenza artificiale: propone orari liberi, sei tu a scegliere. Non scrivere dati personali.
+      </p>
+
+      {% if intento is defined %}
+        <div class="mt-3" aria-live="polite">
+        {% if proposte %}
+          <p class="mb-2"><strong>Ecco gli orari liberi più vicini alla tua richiesta</strong>
+            {% if intento.attivita %} per <em>{{ ATTIVITA[intento.attivita].nome }}</em>{% endif %}:</p>
+          <ul class="list-unstyled d-flex flex-wrap gap-2">
+          {% for s in proposte %}
+            <li><a class="btn btn-outline-primary" href="/prenota?inizio={{ s.inizio|urlencode }}&attivita={{ intento.attivita or 'calcetto' }}">
+              {{ s.data|data_lunga|capitalize }}, ore {{ s.ora }}</a></li>
+          {% endfor %}
+          </ul>
+        {% elif intento %}
+          <div class="alert alert-warning" role="alert">Non ho trovato orari liberi corrispondenti. Prova un altro giorno o guarda il calendario qui sotto.</div>
+        {% else %}
+          <div class="alert alert-info" role="alert">L'assistente non è disponibile in questo momento: usa il calendario qui sotto.</div>
+        {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section aria-labelledby="titolo-attivita" class="mb-3">
+  <h2 id="titolo-attivita" class="h4">1. Scegli lo sport</h2>
+  <div class="d-flex flex-wrap gap-2" role="group" aria-label="Sport">
+  {% for codice in impianto.attivita %}{% set a = ATTIVITA[codice] %}
+    <a href="/?attivita={{ codice }}&dal={{ dal }}" class="btn {{ 'btn-primary' if codice == attivita_sel else 'btn-outline-primary' }}"
+       {% if codice == attivita_sel %}aria-current="true"{% endif %}>
+      {{ a.nome }} <span class="badge bg-white text-primary ms-1">€ {{ a.tariffa_eur }}</span></a>
+  {% endfor %}
+  </div>
+  <p class="small text-muted mt-2 mb-0">Prezzo totale per il gruppo, slot da 60 minuti ({{ FONTE_TARIFFE }}).</p>
+</section>
+
+<section aria-labelledby="titolo-cal">
+  <div class="d-flex justify-content-between align-items-center flex-wrap">
+    <h2 id="titolo-cal" class="h4 mb-2">2. Scegli giorno e ora</h2>
+    <div class="mb-2">
+      {% if prec %}<a class="btn btn-outline-secondary btn-sm" href="/?attivita={{ attivita_sel }}&dal={{ prec }}">‹ Settimana precedente</a>{% endif %}
+      {% if succ %}<a class="btn btn-outline-secondary btn-sm" href="/?attivita={{ attivita_sel }}&dal={{ succ }}">Settimana successiva ›</a>{% endif %}
+    </div>
+  </div>
+  <div class="row g-3 settimana">
+  {% for g in giorni %}
+    <div class="col-12 col-sm-6 col-lg-3 col-xl">
+      <div class="card shadow-sm h-100 giorno {{ 'giorno-vuoto' if not g.slot }}">
+        <div class="card-body p-3">
+          <h3 class="h6 mb-1">{{ g.data|data_lunga|capitalize|replace(" " ~ dal.year, "") }}</h3>
+          {% if not g.slot %}
+            <p class="small text-muted mb-0">Chiuso</p>
+          {% else %}
+            <p class="small mb-2 {{ 'text-success' if g.liberi else 'text-muted' }}">{{ g.liberi }} {{ 'orario libero' if g.liberi == 1 else 'orari liberi' }}</p>
+            <ul class="list-unstyled mb-0 d-grid gap-1">
+            {% for s in g.slot %}
+              <li>
+              {% if s.libero %}
+                <a class="btn btn-outline-primary btn-sm w-100 slot"
+                   href="/prenota?inizio={{ s.inizio|urlencode }}&attivita={{ attivita_sel }}"
+                   aria-label="Prenota {{ g.data|data_lunga }} ore {{ s.ora }}, {{ ATTIVITA[attivita_sel].nome }}, euro {{ ATTIVITA[attivita_sel].tariffa_eur }}">{{ s.ora }}</a>
+              {% else %}
+                <span class="btn btn-sm w-100 slot slot-occupato disabled" aria-disabled="true">{{ s.ora }} · occupato</span>
+              {% endif %}
+              </li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+</section>
+
+<section class="mt-5" aria-labelledby="titolo-faq">
+  <h2 id="titolo-faq" class="h4">Hai una domanda?</h2>
+  {% if ia_attiva %}
+  <form method="post" action="/faq" class="row g-2 align-items-end mt-4 mb-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="col-md-9"><div class="form-group mb-0">
+      <label for="domanda" class="active">Chiedi su tariffe, pagamento, annullamento…</label>
+      <input type="text" class="form-control" id="domanda" name="domanda" maxlength="500" required value="{{ domanda or '' }}" placeholder="es. posso annullare la prenotazione?">
+    </div></div>
+    <div class="col-md-3"><button class="btn btn-outline-primary w-100" type="submit">Chiedi</button></div>
+  </form>
+  {% if faq is defined %}
+    <div class="callout note" aria-live="polite">
+      <div class="callout-title">Risposta</div>
+      {% if faq and faq.trovata %}
+        <p class="mb-1">{{ faq.risposta }}</p>
+        <p class="small text-muted mb-0">{% if faq.generato_da_ia %}Testo generato da IA a partire dalle {% else %}Fonte: {% endif %}informazioni ufficiali del servizio ({{ faq.fonti|join(", ") }}).</p>
+      {% else %}
+        <p class="mb-0">Non ho una risposta certa. Contatta l'Ufficio Cultura, Istruzione e Sport.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

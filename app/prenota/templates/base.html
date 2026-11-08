@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titolo %}Spazio Comune{% endblock %} – Comune di Gioia del Colle</title>
+  <meta name="description" content="Prenotazione online degli impianti sportivi comunali di Gioia del Colle con SPID/CIE e pagoPA">
+  <script>window.__PUBLIC_PATH__ = "/static/bootstrap-italia/dist/fonts";</script>
+  <link rel="stylesheet" href="/static/bootstrap-italia/dist/css/bootstrap-italia.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="skiplinks">
+  <a class="visually-hidden-focusable" href="#main-container">Vai ai contenuti</a>
+</div>
+<header class="it-header-wrapper" data-bs-target="#header-nav-wrapper">
+  <div class="it-header-slim-wrapper">
+    <div class="container"><div class="row"><div class="col-12">
+      <div class="it-header-slim-wrapper-content">
+        <a class="d-lg-block navbar-brand" href="https://www.comune.gioiadelcolle.ba.it/">Comune di Gioia del Colle</a>
+        <div class="it-header-slim-right-zone">
+          {% if utente %}
+            <span class="text-white small me-3">{{ utente.nome }} {{ utente.cognome }}</span>
+            <a class="btn btn-primary btn-sm btn-icon" href="/mie-prenotazioni">Le mie prenotazioni</a>
+            <a class="btn btn-primary btn-sm ms-2" href="/auth/logout">Esci</a>
+          {% else %}
+            <a class="btn btn-primary btn-icon btn-full" href="/auth/login?ritorno=%2Fmie-prenotazioni">
+              <span class="rounded-icon" aria-hidden="true"><svg class="icon icon-primary"><use href="/static/bootstrap-italia/dist/svg/sprites.svg#it-user"></use></svg></span>
+              <span class="d-none d-lg-block">Accedi all'area personale</span>
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div></div></div>
+  </div>
+  <div class="it-nav-wrapper">
+    <div class="it-header-center-wrapper">
+      <div class="container"><div class="row"><div class="col-12">
+        <div class="it-header-center-content-wrapper">
+          <div class="it-brand-wrapper">
+            <a href="/">
+              <svg class="icon" aria-hidden="true"><use href="/static/bootstrap-italia/dist/svg/sprites.svg#it-pa"></use></svg>
+              <div class="it-brand-text">
+                <div class="it-brand-title">Spazio Comune</div>
+                <div class="it-brand-tagline d-none d-md-block">Prenotazioni del Comune di Gioia del Colle</div>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div></div></div>
+    </div>
+  </div>
+</header>
+
+<main id="main-container" class="container my-4">
+  {% block main %}{% endblock %}
+</main>
+
+<footer class="it-footer">
+  <div class="it-footer-main">
+    <div class="container py-4">
+      <div class="row">
+        <div class="col-md-6">
+          <h2 class="h5 text-white">Comune di Gioia del Colle</h2>
+          <p class="small text-white mb-1">Piazza Margherita di Savoia, 10 – 70023 Gioia del Colle (BA)</p>
+          <p class="small text-white">Ufficio Cultura, Istruzione e Sport</p>
+        </div>
+        <div class="col-md-6">
+          <ul class="list-unstyled small">
+            <li><a class="text-white" href="/privacy">Informativa privacy</a></li>
+            <li><a class="text-white" href="https://form.agid.gov.it/">Dichiarazione di accessibilità</a></li>
+            <li><a class="text-white" href="/api/docs">API aperte del servizio</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="it-footer-small-prints py-2">
+    <div class="container small text-white">Prototipo dimostrativo – pagamenti e SPID/CIE sono simulati.</div>
+  </div>
+</footer>
+<script src="/static/bootstrap-italia/dist/js/bootstrap-italia.bundle.min.js"></script>
+</body>
+</html>

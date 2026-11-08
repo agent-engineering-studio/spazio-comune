@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block titolo %}Accedi{% endblock %}
+{% block main %}
+<div class="row justify-content-center"><div class="col-lg-6">
+  <h1>Accedi per prenotare</h1>
+  <p>Per prenotare e pagare serve l'identità digitale (art. 64 del Codice dell'Amministrazione Digitale). Nome, cognome e codice fiscale verranno compilati in automatico.</p>
+  <div class="d-grid gap-2">
+    <a class="btn btn-primary btn-lg" href="/auth/simulato?ritorno={{ ritorno|urlencode }}">Entra con SPID</a>
+    <a class="btn btn-outline-primary btn-lg" href="/auth/simulato?ritorno={{ ritorno|urlencode }}">Entra con CIE</a>
+  </div>
+  <div class="alert alert-info mt-3" role="note">Ambiente dimostrativo: l'accesso è simulato con un utente di prova.</div>
+</div></div>
+{% endblock %}

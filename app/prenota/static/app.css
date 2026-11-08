@@ -1,0 +1,9 @@
+/* Personalizzazioni minime: tutto il resto è Bootstrap Italia */
+.assistente { border-left: 4px solid var(--bs-primary, #0066cc); }
+.settimana .giorno-vuoto { background: #f6f7f9; }
+.slot { font-variant-numeric: tabular-nums; }
+.slot-occupato { background: #eef0f3; color: #5c6f82 !important; text-decoration: line-through; opacity: 1 !important; }
+.ticket .qr svg { width: 220px; height: 220px; }
+.percorso .chip { height: auto; padding: .25rem .75rem; }
+.titolo-pagina { font-size: clamp(1.75rem, 5vw, 2.5rem); }
+@media (max-width: 575.98px) { .lead { font-size: 1.05rem; } }
