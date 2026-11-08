@@ -100,11 +100,16 @@ def scena_cittadino(browser) -> Path:
       <p style="font-size:28px">Con <b>Spazio Comune</b>: <b>4 passaggi</b>, un solo portale, paghi <i>dopo</i> aver scelto.</p>""", 4200)
 
     page.goto(BASE + "/")
-    didascalia(page, "Il calendario mostra subito gli orari liberi", "Calcetto, tennis singolo o doppio · tariffe D.G.C. 37/2025")
+    didascalia(page, "Un solo luogo, un solo portale", "Calcetto, tennis singolo o doppio · tariffe D.G.C. 37/2025")
     page.wait_for_timeout(1800)
-    scorri(page, 420)
-    page.wait_for_timeout(1600)
-    scorri(page, -420)
+    page.locator("#titolo-cal").scroll_into_view_if_needed()
+    scorri(page, -20, 4)
+    didascalia(page, "Liberi e già impegnati, a colpo d'occhio", "Occupato, in pagamento o riservato dall'ufficio: niente sorprese")
+    evidenzia(page, ".legenda", 2600)
+    scorri(page, 180, 12)
+    page.wait_for_timeout(1800)
+    page.evaluate("window.scrollTo({top: 0, behavior: 'smooth'})")
+    page.wait_for_timeout(700)
 
     didascalia(page, "Oppure lo chiedi all'assistente, come a un operatore", "L'IA propone, sei tu a scegliere")
     campo = evidenzia(page, "#testo", 500)
@@ -152,9 +157,11 @@ def scena_cittadino(browser) -> Path:
 
     page.goto(BASE + "/ufficio")
     didascalia(page, "L'Ufficio Sport vede tutto in una pagina", "Incassi pagoPA, riserve per società e scuole, export per la ragioneria")
-    page.wait_for_timeout(2600)
-    scorri(page, 520, 30)
-    page.wait_for_timeout(2600)
+    page.wait_for_timeout(2400)
+    page.locator("#occupazione").scroll_into_view_if_needed()
+    scorri(page, -30, 4)
+    didascalia(page, "Ogni slot porta il suo numero di prenotazione", "Registrato nel database: un orario, una prenotazione")
+    page.wait_for_timeout(3600)
 
     ctx.close()
     return page.video.path()
@@ -211,6 +218,13 @@ def scena_verticale(browser) -> Path:
       <p style="font-size:20px;margin-top:14px">Con <b>Spazio Comune</b>: <b>4 passaggi</b> dal telefono.<br>Paghi <i>dopo</i> aver scelto.</p>""", 3800, w=380)
 
     page.goto(BASE + "/")
+    page.locator("#titolo-cal").scroll_into_view_if_needed()
+    scorri(page, -10, 3)
+    mobile(page, "Liberi e occupati, a colpo d'occhio", "occupato · in pagamento · riservato")
+    page.wait_for_timeout(1200)
+    scorri(page, 260, 14)
+    page.wait_for_timeout(1400)
+
     page.locator("#testo").scroll_into_view_if_needed()
     mobile(page, "Chiedilo all'assistente IA", "come lo diresti a un operatore")
     campo = evidenzia(page, "#testo", 500)
@@ -289,6 +303,10 @@ def screenshot() -> None:
         foto = lambda nome: page.screenshot(path=cartella / f"{nome}.png")  # noqa: E731
         page.goto(BASE + "/")
         foto("01_home")
+        page.evaluate("s => window.scrollTo(0, document.querySelector(s).getBoundingClientRect().top + scrollY - 16)", "#titolo-cal")
+        page.wait_for_timeout(300)
+        foto("09_calendario")
+        page.goto(BASE + "/")
         page.fill("#testo", "calcetto venerdì sera alle 20")
         page.click("form[action='/assistente'] button")
         page.wait_for_load_state()
@@ -316,6 +334,9 @@ def screenshot() -> None:
         foto("06_faq")
         page.goto(BASE + "/ufficio")
         foto("07_ufficio")
+        page.evaluate("s => window.scrollTo(0, document.querySelector(s).getBoundingClientRect().top + scrollY - 16)", "#occupazione")
+        page.wait_for_timeout(300)
+        foto("10_occupazione")
         ctx.close()
         ctx = browser.new_context(viewport={"width": 390, "height": 760}, device_scale_factor=2, is_mobile=True,
                                   has_touch=True, locale="it-IT",

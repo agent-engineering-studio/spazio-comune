@@ -74,6 +74,11 @@ Il calendario di esempio prevede slot dalle 15 alle 22, dal lunedì al sabato (*
 
 ![Back-office dell'Ufficio Sport](screenshot/07_ufficio.png){ loading=lazy }
 
+La griglia *Occupazione degli slot* mostra, per ogni orario dei prossimi 14 giorni, il **numero di
+prenotazione** registrato nel database: un orario, una prenotazione.
+
+![Occupazione degli slot con il numero di prenotazione](screenshot/10_occupazione.png){ loading=lazy }
+
 ## Intelligenza artificiale sotto controllo
 
 L'assistente IA è progettato per una PA: **informa, non decide**.

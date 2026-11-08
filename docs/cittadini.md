@@ -41,6 +41,11 @@ ti propone le 19 o le 21. Tocchi quello che preferisci.
 
 ![L'assistente propone gli orari](screenshot/02_assistente.png){ loading=lazy }
 
+Preferisci guardare il calendario? Ogni orario dice subito com'è messo: **libero**, **occupato**,
+**in pagamento** (qualcuno sta pagando in questo momento) o **riservato** dall'ufficio.
+
+![Calendario con orari liberi e impegnati](screenshot/09_calendario.png){ loading=lazy }
+
 !!! info "L'assistente ti aiuta, ma decidi tu"
     È un sistema di **intelligenza artificiale**, e la pagina lo dice chiaramente. Propone orari e risponde alle
     domande, ma **non prenota e non paga al posto tuo**: ogni scelta resta tua. Non scrivergli dati personali;
