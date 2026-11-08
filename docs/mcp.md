@@ -67,6 +67,45 @@ Gli strumenti dell'ufficio esistono solo se `MCP_UFFICIO_USER` e `MCP_UFFICIO_PA
 
     Requisiti: `pip install -r mcp_server/requirements.txt`.
 
+=== "VS Code · Cursor"
+
+    ```json
+    // VS Code, GitHub Copilot in modalità agente: .vscode/mcp.json
+    { "servers": { "spazio-comune": { "type": "http", "url": "http://localhost:8090/mcp" } } }
+
+    // Cursor: ~/.cursor/mcp.json
+    { "mcpServers": { "spazio-comune": { "url": "http://localhost:8090/mcp" } } }
+    ```
+
+=== "OpenAI Agents SDK"
+
+    ```python
+    from agents import Agent, Runner
+    from agents.mcp import MCPServerStreamableHttp
+
+    async with MCPServerStreamableHttp(params={"url": "http://localhost:8090/mcp"}, name="spazio-comune") as mcp:
+        agente = Agent(name="Prenotazioni", instructions="Aiuta a trovare un orario libero.", mcp_servers=[mcp])
+        print((await Runner.run(agente, "C'è posto per un calcetto venerdì sera?")).final_output)
+    ```
+
+=== "LangChain / LangGraph"
+
+    ```python
+    from langchain_mcp_adapters.client import MultiServerMCPClient
+
+    client = MultiServerMCPClient({"spazio-comune": {"transport": "streamable_http", "url": "http://localhost:8090/mcp"}})
+    tools = await client.get_tools()   # es. create_react_agent(model, tools)
+    ```
+
+=== "Debug"
+
+    ```bash
+    npx @modelcontextprotocol/inspector          # trasporto Streamable HTTP, URL http://localhost:8090/mcp
+    curl -i -X POST http://localhost:8090/mcp \
+      -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+      -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
+    ```
+
 === "Istanza demo"
 
     Per provare con i dati fittizi, punta il server all'istanza demo:

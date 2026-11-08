@@ -77,8 +77,8 @@ docker compose --profile llm up --build -d        # + LLM locale con Ollama (opz
 | Cittadino | `/` | SPID/CIE simulato |
 | Ufficio | `/ufficio` | Basic auth `UFFICIO_USER` / `UFFICIO_PASSWORD` |
 | Custode | `/custode` | utente `custode` / `CUSTODE_PASSWORD` |
-| API (OpenAPI) | `/api/docs` | libero; `/api/v1/ufficio/*` con le credenziali dell'ufficio |
-| Server MCP | `http://localhost:8090/mcp` | solo dalla macchina locale |
+| API (OpenAPI) | `/api/docs` | libero; `/api/v1/ufficio/*` con le credenziali dell'ufficio ([riferimento](#riferimento-api-rest)) |
+| Server MCP | `http://localhost:8090/mcp` | solo dalla macchina locale ([come collegarlo](#collegare-un-sistema-agentico)) |
 
 ### Schema architetturale
 
@@ -197,32 +197,211 @@ Un solo modello, **`.env.example`**: i valori funzionano subito in locale, e sop
 - L'IA non prenota né paga; rimuove CF, email, telefono e IBAN prima di chiamare un LLM; ogni risposta dichiara il motore; se il server IA cade il sito funziona con il calendario.
 - Funziona senza JavaScript.
 
+### Riferimento API REST
+
+Base URL: `BASE_URL` (in locale `http://localhost:8000`, demo `http://localhost:8001`). Risposte JSON; gli
+errori hanno la forma `{"errore": "messaggio"}` con il codice HTTP appropriato (400, 401, 404, 409).
+Documentazione interattiva OpenAPI su **`/api/docs`**, schema su `/openapi.json`.
+
+#### API pubbliche (nessuna autenticazione, nessun dato personale)
+
+| Metodo e percorso | Parametri | Risposta |
+|---|---|---|
+| `GET /api/v1/health` | – | `{"stato":"ok","ia":true,"ora":"…"}`: stato dell'app e dell'assistente |
+| `GET /api/v1/spazio` | – | il luogo: nome, indirizzo, Comune, ufficio, orario, durata slot, preavviso, attività con `tariffa_cent`, `url` |
+| `GET /api/v1/disponibilita` | `dal` (AAAA-MM-GG, predefinito oggi), `giorni` (1-14, predefinito 7) | per giorno: `data`, `liberi`, `slot[]` con `inizio`, `fine`, `ora`, `libero`, `stato` (`libero` · `occupato` · `in_pagamento` · `riservato` · `passato`) |
+| `GET /api/v1/assistente` | `testo` (max 500 caratteri), es. *calcetto venerdì sera alle 20* | `intento` (attività, data, fascia, ora, `backend`, `generato_da_ia`) e fino a 4 `proposte` con `link_prenotazione` |
+| `GET /api/v1/faq` | `domanda` (max 500 caratteri) | `risposta`, `fonti`, `trovata`, `backend`, `generato_da_ia` |
+
+#### API dell'ufficio (Basic auth `UFFICIO_USER` / `UFFICIO_PASSWORD`)
+
+| Metodo e percorso | Parametri | Risposta |
+|---|---|---|
+| `GET /api/v1/ufficio/occupazione` | `dal`, `giorni` (1-14) | come `disponibilita`, e per ogni slot anche `codice` (numero di prenotazione), `stato_prenotazione`, `attivita`, `intestatario` |
+| `GET /api/v1/ufficio/prenotazioni/{codice}` | numero di prenotazione, es. `GDC-7KQ2-M4XP` | `codice`, `attivita`, `inizio`, `fine`, `stato`, `canale`, `importo_cent`, `iuv`, `cognome`, `nome`, `note`, `creata_il` (mai il codice fiscale) |
+| `GET /ufficio/export.csv` | `dal`, `al` | CSV per la ragioneria (separatore `;`) |
+| `GET /ufficio/agenda.ics` | `token` = `FEED_TOKEN` (non Basic auth) | calendario iCal per Outlook, Thunderbird, eAgenda |
+
+<details>
+<summary>Esempi di chiamata e risposta (istanza demo)</summary>
+
+```bash
+curl http://localhost:8001/api/v1/spazio
+```
+```json
+{"nome": "Campo comunale coperto di via Benagiano", "indirizzo": "Via Benagiano, 70023 Gioia del Colle (BA)",
+ "comune": "Comune di Gioia del Colle", "ufficio": "Ufficio Cultura, Istruzione e Sport",
+ "orario": "lun, mar, mer, gio, ven, sab, slot da 60 minuti dalle 15:00 alle 21:00",
+ "durata_slot_min": 60, "preavviso_giorni": 14, "fonte_tariffe": "D.G.C. n. 37/2025 – …",
+ "attivita": [{"codice": "calcetto", "nome": "Calcetto (calcio a 5)", "tariffa_cent": 4000, "giocatori": "fino a 10"}, "…"],
+ "url": "http://localhost:8001"}
+```
+
+```bash
+curl "http://localhost:8001/api/v1/disponibilita?dal=2026-11-13&giorni=1"
+```
+```json
+[{"data": "2026-11-13", "liberi": 2, "slot": [
+  {"inizio": "2026-11-13T19:00:00+01:00", "fine": "2026-11-13T20:00:00+01:00", "ora": "19:00", "libero": true, "stato": "libero"},
+  {"inizio": "2026-11-13T20:00:00+01:00", "fine": "2026-11-13T21:00:00+01:00", "ora": "20:00", "libero": false, "stato": "occupato"}]}]
+```
+
+```bash
+curl -G http://localhost:8001/api/v1/assistente --data-urlencode "testo=calcetto venerdì sera alle 20"
+```
+```json
+{"intento": {"attivita": "calcetto", "data": "2026-11-13", "fascia": "sera", "ora": "20:00", "giocatori": null,
+             "confidenza": 1.0, "backend": "rules", "generato_da_ia": false},
+ "proposte": [{"data": "2026-11-13", "ora": "19:00", "inizio": "2026-11-13T19:00:00+01:00", "stato": "libero",
+   "link_prenotazione": "http://localhost:8001/prenota?inizio=2026-11-13T19%3A00%3A00%2B01%3A00&attivita=calcetto"}]}
+```
+
+```bash
+curl -G http://localhost:8001/api/v1/faq --data-urlencode "domanda=posso annullare?"
+```
+```json
+{"risposta": "Puoi annullare online dall'area 'Le mie prenotazioni' fino a 24 ore prima. …",
+ "fonti": ["annullamento"], "trovata": true, "backend": "rules", "generato_da_ia": false}
+```
+
+```bash
+curl -u ufficio.sport:cambiami "http://localhost:8001/api/v1/ufficio/occupazione?dal=2026-11-13&giorni=1"
+```
+```json
+[{"data": "2026-11-13", "liberi": 2, "slot": [
+  {"inizio": "2026-11-13T15:00:00+01:00", "ora": "15:00", "libero": false, "stato": "occupato",
+   "codice": "GDC-MWX5-RLU6", "stato_prenotazione": "CONFERMATA", "attivita": "calcetto", "intestatario": "Rossi Mario"}, "…"]}]
+```
+</details>
+
+#### Pagine web (per persone, non per integrazioni)
+
+| Percorso | Chi | Cosa |
+|---|---|---|
+| `GET /` · `POST /assistente` · `POST /faq` | cittadino | calendario, assistente IA, domande |
+| `GET /prenota?inizio=…&attivita=…` · `POST /prenota` | cittadino (SPID/CIE) | riepilogo e conferma, poi pagoPA |
+| `GET /pagamento/esito/{codice}` | cittadino | ritorno da pagoPA, verifica del pagamento |
+| `GET /prenotazione/{codice}` · `/calendario.ics` · `POST …/annulla` | intestatario | ticket con QR, evento calendario, annullamento |
+| `GET /mie-prenotazioni` · `/privacy` · `/auth/login` · `/auth/logout` | cittadino | area personale e accesso |
+| `GET /ufficio` · `POST /ufficio/blocca` · `POST /ufficio/{codice}/conferma` · `POST /ufficio/{codice}/annulla` | ufficio | back-office, griglia di occupazione, riserve, pagamenti allo sportello |
+| `GET /custode` · `POST /custode` | custode | verifica QR o numero di prenotazione |
+
+#### Server di inferenza (solo rete interna Docker, `http://inference:8080`)
+
+| Metodo e percorso | Uso |
+|---|---|
+| `GET /health` | stato, backend e modello attivo |
+| `GET /v1/models` | elenco modelli (formato OpenAI) |
+| `POST /v1/tasks/intent` | `{"testo", "oggi"}` → `{attivita, data, fascia, ora, giocatori, confidenza, backend, generato_da_ia}` |
+| `POST /v1/tasks/faq` | `{"domanda", "documenti"}` → risposta fondata solo sui documenti, con `fonti` |
+| `POST /v1/chat/completions` | compatibilità OpenAI: proxy verso l'LLM con redazione dei dati personali |
+
 ### Server MCP per altri sistemi agentici
 
-`mcp_server/server.py` (SDK ufficiale `mcp`, FastMCP) espone il luogo come strumenti per Claude, IDE e
-orchestratori. Passa solo dalle API REST dell'app: non legge il database e non conosce i segreti dell'app.
-**L'agente propone, la persona decide**: nessuno strumento prenota o paga, `link_prenotazione` restituisce il
+`mcp_server/server.py` (SDK ufficiale `mcp`, FastMCP) espone il luogo come strumenti per assistenti e agenti.
+Passa **solo** dalle API REST qui sopra: non legge il database e non conosce i segreti dell'app.
+**L'agente propone, la persona decide**: nessuno strumento prenota o paga; `link_prenotazione` restituisce il
 link da aprire per completare con SPID/CIE e pagoPA.
 
-| Strumento | Cosa fa |
-|---|---|
-| `info_spazio` | luogo, Comune, orari, attività e tariffe |
-| `disponibilita` | calendario con lo stato di ogni slot (libero, occupato, in pagamento, riservato, passato) |
-| `cerca_orari` | dalla frase *"calcetto venerdì sera alle 20"* agli orari liberi più vicini |
-| `domanda` | FAQ con le fonti ufficiali |
-| `link_prenotazione` | verifica lo slot e restituisce il link di prenotazione |
-| `occupazione_slot` *(ufficio)* | per ogni slot, il numero di prenotazione registrato |
-| `dettaglio_prenotazione` *(ufficio)* | dettaglio dal numero di prenotazione, senza codice fiscale |
+#### URL e trasporti
 
-```jsonc
-// Claude Desktop / Claude Code (stdio)
+| Modalità | Indirizzo / comando | Quando usarla |
+|---|---|---|
+| **Streamable HTTP** (container `spazio-comune-mcp`) | **`http://localhost:8090/mcp`** | agenti sulla stessa macchina; con `docker compose up -d` è già attivo |
+| **stdio** | `python mcp_server/server.py` (con `SPAZIO_COMUNE_URL`) | client desktop e IDE che avviano il server come processo |
+| HTTP dietro reverse proxy | `https://mcp.comune.<nome>.it/mcp` | agenti su altre macchine: con autenticazione sul proxy e l'host in `MCP_ALLOWED_HOSTS` |
+
+Server name `spazio-comune`. Variabili del server: `SPAZIO_COMUNE_URL` (default `http://localhost:8000`,
+in Docker `http://app:8000`), `MCP_TRANSPORT` (`stdio` | `http`), `MCP_HOST`/`MCP_PORT` (`127.0.0.1`/`8090`),
+`MCP_ALLOWED_HOSTS`, `SPAZIO_COMUNE_UFFICIO_USER`/`_PASSWORD` (nel `.env`: `MCP_UFFICIO_USER`/`_PASSWORD`).
+
+#### Tool
+
+| Tool | Parametri | Restituisce |
+|---|---|---|
+| `info_spazio` | – | luogo, Comune, ufficio, orario, attività e tariffe (centesimi), URL del sito |
+| `disponibilita` | `dal?` (AAAA-MM-GG), `giorni` = 7 (1-14), `solo_liberi` = false | calendario con lo stato di ogni slot |
+| `cerca_orari` | `richiesta` (frase in italiano) | intento riconosciuto e fino a 4 proposte con `link_prenotazione` |
+| `domanda` | `testo` | risposta dalle fonti ufficiali; `trovata: false` se non c'è, e allora si rimanda all'ufficio |
+| `link_prenotazione` | `inizio` (ISO 8601 come in `disponibilita`), `attivita` (codice) | `{disponibile, link, nota}`, oppure `{disponibile: false, stato}` se lo slot è preso |
+| `occupazione_slot` *(ufficio)* | `dal?`, `giorni` = 7 | per ogni slot, `codice` (numero di prenotazione), stato, attività, intestatario |
+| `dettaglio_prenotazione` *(ufficio)* | `codice`, es. `GDC-7KQ2-M4XP` | dettaglio della prenotazione, senza codice fiscale |
+
+Gli ultimi due compaiono solo se nel `.env` sono valorizzati `MCP_UFFICIO_USER` e `MCP_UFFICIO_PASSWORD`
+(stesse credenziali del back-office). Gli errori (data non valida, slot inesistente, app non raggiungibile)
+tornano come risultato di errore MCP con un messaggio in italiano leggibile dall'agente.
+
+#### Collegare un sistema agentico
+
+**Claude Code**
+```bash
+claude mcp add --transport http spazio-comune http://localhost:8090/mcp
+```
+
+**Claude Desktop** (`claude_desktop_config.json`, stdio)
+```json
 { "mcpServers": { "spazio-comune": {
-    "command": "python", "args": ["mcp_server/server.py"],
+    "command": "python", "args": ["/percorso/spazio-comune/mcp_server/server.py"],
     "env": { "SPAZIO_COMUNE_URL": "http://localhost:8000" } } } }
 ```
 
-Via HTTP (container `spazio-comune-mcp`): `http://localhost:8090/mcp`, ad esempio
-`claude mcp add --transport http spazio-comune http://localhost:8090/mcp`.
+**VS Code** (GitHub Copilot in modalità agente, `.vscode/mcp.json`)
+```json
+{ "servers": { "spazio-comune": { "type": "http", "url": "http://localhost:8090/mcp" } } }
+```
+
+**Cursor** (`~/.cursor/mcp.json`)
+```json
+{ "mcpServers": { "spazio-comune": { "url": "http://localhost:8090/mcp" } } }
+```
+
+**OpenAI Agents SDK** (Python)
+```python
+from agents import Agent, Runner
+from agents.mcp import MCPServerStreamableHttp
+
+async with MCPServerStreamableHttp(params={"url": "http://localhost:8090/mcp"}, name="spazio-comune") as mcp:
+    agente = Agent(name="Prenotazioni", instructions="Aiuta a trovare un orario libero.", mcp_servers=[mcp])
+    print((await Runner.run(agente, "C'è posto per un calcetto venerdì sera?")).final_output)
+```
+
+**LangChain / LangGraph** (`langchain-mcp-adapters`)
+```python
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
+client = MultiServerMCPClient({"spazio-comune": {"transport": "streamable_http", "url": "http://localhost:8090/mcp"}})
+tools = await client.get_tools()   # da passare all'agente, es. create_react_agent(model, tools)
+```
+
+**Client MCP Python** (SDK ufficiale)
+```python
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+async with streamablehttp_client("http://localhost:8090/mcp") as (r, w, _):
+    async with ClientSession(r, w) as s:
+        await s.initialize()
+        print(await s.call_tool("cerca_orari", {"richiesta": "tennis doppio domani sera"}))
+```
+
+**Ispezione e debug**: `npx @modelcontextprotocol/inspector`, trasporto *Streamable HTTP*, URL
+`http://localhost:8090/mcp`. Oppure JSON-RPC diretto:
+
+```bash
+curl -i -X POST http://localhost:8090/mcp \
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
+# la risposta contiene l'header mcp-session-id da rimandare nelle chiamate successive (tools/list, tools/call)
+```
+
+**Per i dati fittizi** si punta il server alla demo:
+`SPAZIO_COMUNE_URL=http://localhost:8001 MCP_TRANSPORT=http MCP_PORT=8091 python mcp_server/server.py`,
+poi si usa `http://localhost:8091/mcp`.
+
+**Sicurezza.** La porta 8090 è pubblicata solo su `127.0.0.1`; una richiesta con un header `Host` non presente in
+`MCP_ALLOWED_HOSTS` riceve `400` (protezione da DNS rebinding). Le istruzioni del server dicono all'agente di non
+chiedere né inviare codice fiscale, telefono o email. Pagina dedicata:
+[Server MCP](https://agentengineering.it/spazio-comune/mcp/).
 
 ### Test e simulazione
 
