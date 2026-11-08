@@ -6,7 +6,7 @@
 site_name = "Spazio Comune"
 site_description = "Prenotazione online degli impianti sportivi comunali con SPID/CIE, pagoPA, QR code e assistente IA"
 site_author = "Giuseppe Zileni"
-site_url = "https://agent-engineering-studio.github.io/spazio-comune/"
+site_url = "https://agentengineering.it/spazio-comune/"
 repo_url = "https://github.com/agent-engineering-studio/spazio-comune"
 repo_name = "agent-engineering-studio/spazio-comune"
 edit_uri = "edit/main/docs/"

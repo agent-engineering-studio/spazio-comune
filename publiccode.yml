@@ -1,7 +1,7 @@
 publiccodeYmlVersion: "0.4"
 name: Spazio Comune
 url: "https://github.com/agent-engineering-studio/spazio-comune.git"
-landingURL: "https://agent-engineering-studio.github.io/spazio-comune/"
+landingURL: "https://agentengineering.it/spazio-comune/"
 releaseDate: "2026-11-08"
 softwareVersion: "0.1.0"
 platforms: [web]

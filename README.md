@@ -4,7 +4,7 @@
 partendo da una frase.** Open source (EUPL-1.2), riusabile da qualsiasi Comune.
 Pilota proposto: campo coperto di via Benagiano, Comune di Gioia del Colle.
 
-📖 **Documentazione completa:** https://agent-engineering-studio.github.io/spazio-comune/
+📖 **Documentazione completa:** https://agentengineering.it/spazio-comune/
 
 ![Demo](docs/demo/spazio-comune-demo.gif)
 
@@ -32,7 +32,7 @@ libero. Con Spazio Comune bastano **quattro passi dal telefono**, e si paga *dop
 Propone orari e risponde alle domande su tariffe, pagamento e annullamento citando la fonte ufficiale;
 se non sa una risposta lo dice. Non prenota e non paga al posto tuo, e non riceve i tuoi dati personali.
 
-→ [Guida per i cittadini](https://agent-engineering-studio.github.io/spazio-comune/cittadini/) ·
+→ [Guida per i cittadini](https://agentengineering.it/spazio-comune/cittadini/) ·
 [video verticale](docs/demo/spazio-comune-demo-verticale.mp4)
 
 ---
@@ -51,7 +51,7 @@ se non sa una risposta lo dice. Non prenota e non paga al posto tuo, e non ricev
 Piano proposto: dimostrazione → attivazioni tecniche (MyPay SIL, SPID/CIE, cloud qualificato) → **pilota di 8 settimane** →
 valutazione ed estensione.
 
-→ [Benefici per il Comune](https://agent-engineering-studio.github.io/spazio-comune/comune/) ·
+→ [Benefici per il Comune](https://agentengineering.it/spazio-comune/comune/) ·
 [Analisi e proposta](docs/ANALISI.md) · [Conformità normativa](docs/conformita.md)
 
 ---
@@ -97,7 +97,7 @@ Container: `spazio-comune-app`, `spazio-comune-inference`, `spazio-comune-demo`,
 
 `DB_PATH` e `INFERENCE_URL` sono già impostati da `docker-compose.yml`. Dopo una modifica:
 `docker compose up -d --force-recreate`. Dettagli ed esempi:
-[Configurazione](https://agent-engineering-studio.github.io/spazio-comune/configurazione/).
+[Configurazione](https://agentengineering.it/spazio-comune/configurazione/).
 
 ### Architettura e IA
 
@@ -128,7 +128,7 @@ Container: `spazio-comune-app`, `spazio-comune-inference`, `spazio-comune-demo`,
 | IA | AI Act art. 50, L. 132/2025, Linee guida AgID | Valutazione d'impatto prima di attivare un LLM |
 | Riuso | CAD artt. 68-69 | `publiccode.yml`, Developers Italia |
 
-→ [Installazione conforme per la PA](https://agent-engineering-studio.github.io/spazio-comune/normativa-it/)
+→ [Installazione conforme per la PA](https://agentengineering.it/spazio-comune/normativa-it/)
 
 ### Senza Docker
 
