@@ -1,18 +1,15 @@
 """Un solo luogo configurato da .env, tabella slot con numero di prenotazione, API per agenti."""
-import sqlite3
 import threading
 from datetime import time
 
 import pytest
 from fastapi.testclient import TestClient
+from psycopg.errors import IntegrityError
 
-from prenota.adapters.agenda import NoopAgenda
 from prenota.adapters.identity import Cittadino
-from prenota.adapters.payments import MockPagoPA
 from prenota.ai import AssistenteIA
-from prenota.booking import ErrorePrenotazione, ServizioPrenotazioni
+from prenota.booking import ErrorePrenotazione
 from prenota.catalog import Spazio
-from prenota.db import Database
 from prenota.main import create_app
 
 from test_web import VEN_20, _prenota_e_paga
@@ -26,7 +23,7 @@ ENV_PALESTRA = {
 
 
 def _slot(servizio, inizio):
-    r = servizio.db.query("SELECT * FROM slot WHERE inizio=?", (inizio,))
+    r = servizio.db.query("SELECT * FROM slot WHERE inizio=%s", (inizio,))
     return dict(r[0]) if r else None
 
 
@@ -65,13 +62,14 @@ def test_app_mostra_il_luogo_configurato(settings, orologio, inference_client):
     assert giorni["2026-11-10"]["slot"] == [] and [s["ora"] for s in giorni["2026-11-09"]["slot"]] == ["17:00", "18:00", "19:00"]
     r = _prenota_e_paga(c, inizio="2026-11-11T18:00:00+01:00")
     assert "PAE-" in r.text
+    c.app.state.db.chiudi()
 
 
 # ------------------------------------------------------------ tabella slot
 def test_numero_di_prenotazione_registrato_sullo_slot(servizio, mario):
     p = servizio.prenota("calcetto", VEN_20, mario)
     assert _slot(servizio, VEN_20)["codice_prenotazione"] == p["codice"]
-    v = servizio.db.query("SELECT * FROM v_occupazione WHERE inizio=?", (VEN_20,))[0]
+    v = servizio.db.query("SELECT * FROM v_occupazione WHERE inizio=%s", (VEN_20,))[0]
     assert v["stato"] == "ATTESA_PAGAMENTO" and v["cognome"] == "Rossi"
 
 
@@ -125,10 +123,8 @@ def test_stati_pubblici_e_occupazione(servizio, orologio, mario, anna):
     assert {s["ora"]: s["codice"] for s in venerdi["slot"]}["20:00"] is None
 
 
-def test_concorrenza_un_solo_vincitore_per_slot(tmp_path, orologio):
-    """Simulazione: 40 cittadini prenotano insieme lo stesso slot su database su file."""
-    servizio = ServizioPrenotazioni(Database(str(tmp_path / "c.db")), MockPagoPA("http://t"), NoopAgenda(),
-                                    "k", adesso=orologio)
+def test_concorrenza_un_solo_vincitore_per_slot(servizio):
+    """Simulazione: 40 cittadini prenotano insieme lo stesso slot, su connessioni PostgreSQL diverse."""
     esiti, barriera = [], threading.Barrier(40)
 
     def prova(i):
@@ -148,24 +144,23 @@ def test_concorrenza_un_solo_vincitore_per_slot(tmp_path, orologio):
     assert _slot(servizio, VEN_20)["codice_prenotazione"] == vincitori[0]
 
 
-def test_migrazione_da_schema_v1(tmp_path):
-    f = tmp_path / "v1.db"
-    con = sqlite3.connect(f)
-    con.executescript("""
-    CREATE TABLE prenotazioni (id INTEGER PRIMARY KEY AUTOINCREMENT, codice TEXT NOT NULL UNIQUE,
-      impianto TEXT NOT NULL, attivita TEXT NOT NULL, inizio TEXT NOT NULL, fine TEXT NOT NULL,
-      stato TEXT NOT NULL, canale TEXT NOT NULL, importo_cent INTEGER NOT NULL, iuv TEXT, url_pagamento TEXT,
-      cf TEXT, nome TEXT, cognome TEXT, email TEXT, telefono TEXT, note TEXT, creata_il TEXT NOT NULL,
-      aggiornata_il TEXT NOT NULL);
-    CREATE UNIQUE INDEX ux_slot_attivo ON prenotazioni (impianto, inizio)
-      WHERE stato IN ('ATTESA_PAGAMENTO','CONFERMATA','BLOCCO','UTILIZZATA');
-    INSERT INTO prenotazioni VALUES (1,'GDC-AAAA-BBBB','benagiano','calcetto','2026-11-13T20:00:00+01:00',
-      '2026-11-13T21:00:00+01:00','CONFERMATA','ONLINE',4000,NULL,NULL,'X','M','R',NULL,NULL,NULL,'t','t');
-    """)
-    con.close()
-    db = Database(str(f))
-    assert db.query("SELECT codice_prenotazione FROM slot")[0][0] == "GDC-AAAA-BBBB"
-    assert "impianto" not in {r[1] for r in db.query("PRAGMA table_info(prenotazioni)")}
+def test_vincoli_del_database(servizio, mario):
+    """Anche scrivendo direttamente in tabella, il database rifiuta sovrapposizioni e doppioni."""
+    servizio.prenota("calcetto", VEN_20, mario)
+    riga = ("X-1", "calcetto", "2026-11-13T20:30:00+01:00", "2026-11-13T21:30:00+01:00", "CONFERMATA", "UFFICIO", 0,
+            "2026-11-09T10:00:00+01:00", "2026-11-09T10:00:00+01:00")
+    with pytest.raises(IntegrityError, match="ex_nessuna_sovrapposizione"):
+        with servizio.db.tx() as conn:
+            conn.execute("INSERT INTO prenotazioni (codice, attivita, inizio, fine, stato, canale, importo_cent, "
+                         "creata_il, aggiornata_il) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)", riga)
+    altro = servizio.prenota("calcetto", "2026-11-13T19:00:00+01:00", mario)
+    with pytest.raises(IntegrityError):
+        with servizio.db.tx() as conn:
+            conn.execute("UPDATE slot SET codice_prenotazione=%s WHERE inizio=%s", (altro["codice"], VEN_20))
+    tipi = {r["column_name"]: r["data_type"] for r in servizio.db.query(
+        "SELECT column_name, data_type FROM information_schema.columns "
+        "WHERE table_schema=current_schema() AND table_name='slot'")}
+    assert tipi["inizio"] == "timestamp with time zone"
 
 
 # ------------------------------------------------------------ interfaccia e API

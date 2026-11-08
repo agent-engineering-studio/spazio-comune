@@ -15,7 +15,9 @@ def _env(nome: str, default: str | None = None) -> str | None:
 @dataclass
 class Settings:
     base_url: str = field(default_factory=lambda: _env("BASE_URL", "http://localhost:8000"))
-    db_path: str = field(default_factory=lambda: _env("DB_PATH", "/data/prenota.db"))
+    database_url: str = field(default_factory=lambda: _env(
+        "DATABASE_URL", "postgresql://spazio:spazio@localhost:5432/spazio_comune"))
+    database_schema: str = field(default_factory=lambda: _env("DATABASE_SCHEMA", "public"))
     secret_key: str = field(default_factory=lambda: _env("SECRET_KEY") or secrets.token_hex(32))
     inference_url: str | None = field(default_factory=lambda: _env("INFERENCE_URL"))
     payment_backend: str = field(default_factory=lambda: _env("PAYMENT_BACKEND", "mock"))

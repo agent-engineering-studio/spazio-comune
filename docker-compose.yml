@@ -8,7 +8,27 @@
 #
 name: spazio-comune
 
+x-database-url: &database-url postgresql://spazio:${POSTGRES_PASSWORD:-spazio-dev}@db:5432/spazio_comune
+
 services:
+  # --- database PostgreSQL: raggiungibile solo dalla rete interna di Compose
+  db:
+    container_name: spazio-comune-db
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: spazio_comune
+      POSTGRES_USER: spazio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spazio-dev}
+      TZ: Europe/Rome
+    volumes: ["pgdati:/var/lib/postgresql/data"]
+    expose: ["5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spazio -d spazio_comune"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   app:
     container_name: spazio-comune-app
     build: ./app
@@ -16,9 +36,11 @@ services:
     env_file: [.env]
     environment:
       INFERENCE_URL: http://inference:8080
-      DB_PATH: /data/prenota.db          # database SQLite: file nel volume "dati"
-    volumes: ["dati:/data"]
+      # PostgreSQL del container "db"; con un servizio gestito impostare DATABASE_URL nel .env
+      DATABASE_URL: ${DATABASE_URL:-postgresql://spazio:${POSTGRES_PASSWORD:-spazio-dev}@db:5432/spazio_comune}
     depends_on:
+      db:
+        condition: service_healthy
       inference:
         condition: service_healthy
     restart: unless-stopped
@@ -79,7 +101,8 @@ services:
       HOST: 0.0.0.0
       PORT: "8000"
       BASE_URL: http://localhost:8001
-      DB_PATH: /data/demo.db
+      DATABASE_URL: *database-url
+      DATABASE_SCHEMA: demo                # schema a parte, ricreato a ogni avvio della demo
       INFERENCE_URL: http://inference:8080
       SECRET_KEY: demo-non-usare-in-produzione
       FEED_TOKEN: demo
@@ -89,6 +112,8 @@ services:
       COOKIE_SECURE: "false"
       DEMO_ORA: ${DEMO_ORA:-2026-11-09T18:35:00}
     depends_on:
+      db:
+        condition: service_healthy
       inference:
         condition: service_healthy
 
@@ -99,7 +124,12 @@ services:
       context: .
       dockerfile: tests.Dockerfile
     profiles: ["test"]
+    environment:
+      TEST_DATABASE_URL: *database-url     # ogni test usa uno schema temporaneo, poi eliminato
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
-  dati:
+  pgdati:
   modelli:

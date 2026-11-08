@@ -20,6 +20,8 @@ from datetime import date, datetime, timedelta
 from typing import Callable
 from zoneinfo import ZoneInfo
 
+from psycopg.errors import IntegrityError
+
 from .adapters.agenda import AgendaSync
 from .adapters.identity import Cittadino
 from .adapters.payments import Dovuto, PaymentGateway
@@ -82,22 +84,23 @@ class ServizioPrenotazioni:
 
     def _scadi_attese(self, conn) -> None:
         limite = (self.adesso() - self.ttl).isoformat()
-        for (codice,) in conn.execute("SELECT codice FROM prenotazioni "
-                                      "WHERE stato='ATTESA_PAGAMENTO' AND creata_il < ?", (limite,)).fetchall():
+        for riga in conn.execute("SELECT codice FROM prenotazioni "
+                                 "WHERE stato='ATTESA_PAGAMENTO' AND creata_il < %s", (limite,)).fetchall():
+            codice = riga["codice"]
             self._libera_slot(conn, codice)
-            conn.execute("UPDATE prenotazioni SET stato='SCADUTA', aggiornata_il=? WHERE codice=?",
+            conn.execute("UPDATE prenotazioni SET stato='SCADUTA', aggiornata_il=%s WHERE codice=%s",
                          (self.adesso().isoformat(), codice))
 
     # ------------------------------------------------------------ tabella slot
     def _genera_slot(self, conn, giorno: date) -> None:
-        conn.executemany(
-            "INSERT OR IGNORE INTO slot (inizio, fine, aggiornato_il) VALUES (?,?,?)",
+        conn.cursor().executemany(
+            "INSERT INTO slot (inizio, fine, aggiornato_il) VALUES (%s,%s,%s) ON CONFLICT (inizio) DO NOTHING",
             [(a.isoformat(), b.isoformat(), self.adesso().isoformat()) for a, b in self.slot_teorici(giorno)])
 
     def _occupa_slot(self, conn, inizio: str, fine: str, codice: str) -> None:
         """Registra il numero di prenotazione sulla riga dello slot."""
         cur = conn.execute(
-            "INSERT INTO slot (inizio, fine, codice_prenotazione, aggiornato_il) VALUES (?,?,?,?) "
+            "INSERT INTO slot (inizio, fine, codice_prenotazione, aggiornato_il) VALUES (%s,%s,%s,%s) "
             "ON CONFLICT (inizio) DO UPDATE SET codice_prenotazione=excluded.codice_prenotazione, "
             "aggiornato_il=excluded.aggiornato_il "
             "WHERE slot.codice_prenotazione IS NULL OR slot.codice_prenotazione=excluded.codice_prenotazione",
@@ -106,11 +109,11 @@ class ServizioPrenotazioni:
             raise ErrorePrenotazione("Questo orario è appena stato prenotato da un'altra persona", 409)
 
     def _libera_slot(self, conn, codice: str) -> None:
-        conn.execute("UPDATE slot SET codice_prenotazione=NULL, aggiornato_il=? WHERE codice_prenotazione=?",
+        conn.execute("UPDATE slot SET codice_prenotazione=NULL, aggiornato_il=%s WHERE codice_prenotazione=%s",
                      (self.adesso().isoformat(), codice))
 
     def _riga(self, codice: str) -> dict:
-        r = self.db.query("SELECT * FROM prenotazioni WHERE codice=?", (codice,))
+        r = self.db.query("SELECT * FROM prenotazioni WHERE codice=%s", (codice,))
         if not r:
             raise ErrorePrenotazione("Prenotazione non trovata", 404)
         return dict(r[0])
@@ -139,7 +142,7 @@ class ServizioPrenotazioni:
         if not elenco:
             return []
         righe = {r["inizio"]: dict(r) for r in self.db.query(
-            "SELECT * FROM v_occupazione WHERE inizio >= ? AND inizio < ?",
+            "SELECT * FROM v_occupazione WHERE inizio >= %s AND inizio < %s",
             (elenco[0].isoformat(), (elenco[-1] + timedelta(days=1)).isoformat()))}
         risultato = []
         for g in elenco:
@@ -189,14 +192,12 @@ class ServizioPrenotazioni:
                 conn.execute(
                     "INSERT INTO prenotazioni (codice, attivita, inizio, fine, stato, canale, "
                     "importo_cent, cf, nome, cognome, email, telefono, note, creata_il, aggiornata_il) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     (codice, attivita, inizio.isoformat(), validi[inizio].isoformat(),
                      "ATTESA_PAGAMENTO", canale, att.tariffa_cent, cittadino.cf, cittadino.nome,
                      cittadino.cognome, cittadino.email, telefono, (note or "")[:280], ora, ora))
-            except Exception as e:  # violazione indice univoco = slot già preso
-                if "UNIQUE" in str(e):
-                    raise ErrorePrenotazione("Questo orario è appena stato prenotato da un'altra persona", 409) from None
-                raise
+            except IntegrityError:  # vincolo univoco o di esclusione: slot già preso
+                raise ErrorePrenotazione("Questo orario è appena stato prenotato da un'altra persona", 409) from None
             self._occupa_slot(conn, inizio.isoformat(), validi[inizio].isoformat(), codice)
         return self._riga(codice)
 
@@ -214,7 +215,7 @@ class ServizioPrenotazioni:
             cf_debitore=p["cf"] or "ANONIMO", nome_debitore=f"{p['nome']} {p['cognome']}",
             email=p["email"]), url_ritorno)
         with self.db.tx() as conn:
-            conn.execute("UPDATE prenotazioni SET iuv=?, url_pagamento=?, aggiornata_il=? WHERE codice=?",
+            conn.execute("UPDATE prenotazioni SET iuv=%s, url_pagamento=%s, aggiornata_il=%s WHERE codice=%s",
                          (esito.iuv, esito.url_pagamento, self.adesso().isoformat(), codice))
         return self._riga(codice)
 
@@ -224,18 +225,23 @@ class ServizioPrenotazioni:
         if p["stato"] == "CONFERMATA" or not p["iuv"]:
             return p
         if self.pagamenti.verifica_pagato(p["iuv"]):
-            with self.db.tx() as conn:
-                # Si conferma anche se nel frattempo l'attesa era scaduta, purché lo slot sia ancora libero.
-                cur = conn.execute(
-                    "UPDATE prenotazioni SET stato='CONFERMATA', aggiornata_il=? "
-                    "WHERE codice=? AND stato IN ('ATTESA_PAGAMENTO','SCADUTA') "
-                    f"AND NOT EXISTS (SELECT 1 FROM prenotazioni q "
-                    f"WHERE q.inizio=prenotazioni.inizio AND q.codice<>prenotazioni.codice AND q.stato IN {STATI_ATTIVI})",
-                    (self.adesso().isoformat(), codice))
-                if cur.rowcount == 1:
-                    self._occupa_slot(conn, p["inizio"], p["fine"], codice)
+            confermata = False
+            try:
+                with self.db.tx() as conn:
+                    # Si conferma anche se nel frattempo l'attesa era scaduta, purché lo slot sia ancora libero.
+                    cur = conn.execute(
+                        "UPDATE prenotazioni SET stato='CONFERMATA', aggiornata_il=%s "
+                        "WHERE codice=%s AND stato IN ('ATTESA_PAGAMENTO','SCADUTA') "
+                        f"AND NOT EXISTS (SELECT 1 FROM prenotazioni q "
+                        f"WHERE q.inizio=prenotazioni.inizio AND q.codice<>prenotazioni.codice AND q.stato IN {STATI_ATTIVI})",
+                        (self.adesso().isoformat(), codice))
+                    confermata = cur.rowcount == 1
+                    if confermata:
+                        self._occupa_slot(conn, p["inizio"], p["fine"], codice)
+            except (IntegrityError, ErrorePrenotazione):  # slot preso da altri nello stesso istante
+                confermata = False
             p = self._riga(codice)
-            if cur.rowcount == 1:
+            if confermata:
                 self.agenda.pubblica(p)
             elif p["stato"] != "CONFERMATA":
                 # pagato ma slot perso: va rimborsato dall'ufficio, lo segnaliamo
@@ -248,8 +254,8 @@ class ServizioPrenotazioni:
         """L'ufficio registra un pagamento ricevuto allo sportello (modus operandi attuale)."""
         with self.db.tx() as conn:
             cur = conn.execute(
-                "UPDATE prenotazioni SET stato='CONFERMATA', iuv=COALESCE(iuv, ?), aggiornata_il=? "
-                "WHERE codice=? AND stato='ATTESA_PAGAMENTO'",
+                "UPDATE prenotazioni SET stato='CONFERMATA', iuv=COALESCE(iuv, %s), aggiornata_il=%s "
+                "WHERE codice=%s AND stato='ATTESA_PAGAMENTO'",
                 (riferimento, self.adesso().isoformat(), codice))
         if cur.rowcount != 1:
             raise ErrorePrenotazione("Prenotazione non confermabile", 409)
@@ -270,13 +276,11 @@ class ServizioPrenotazioni:
             try:
                 conn.execute(
                     "INSERT INTO prenotazioni (codice, attivita, inizio, fine, stato, canale, "
-                    "importo_cent, note, creata_il, aggiornata_il) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    "importo_cent, note, creata_il, aggiornata_il) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     (codice, "blocco", inizio.isoformat(), validi[inizio].isoformat(),
                      "BLOCCO", "UFFICIO", 0, motivo[:280], ora, ora))
-            except Exception as e:
-                if "UNIQUE" in str(e):
-                    raise ErrorePrenotazione("Slot già occupato", 409) from None
-                raise
+            except IntegrityError:
+                raise ErrorePrenotazione("Slot già occupato", 409) from None
             self._occupa_slot(conn, inizio.isoformat(), validi[inizio].isoformat(), codice)
         p = self._riga(codice)
         self.agenda.pubblica(p)
@@ -292,7 +296,7 @@ class ServizioPrenotazioni:
             raise ErrorePrenotazione(
                 f"L'annullamento online è possibile fino a {self.ore_annullamento} ore prima; contatta l'Ufficio Sport", 409)
         with self.db.tx() as conn:
-            conn.execute("UPDATE prenotazioni SET stato='ANNULLATA', aggiornata_il=? WHERE codice=?",
+            conn.execute("UPDATE prenotazioni SET stato='ANNULLATA', aggiornata_il=%s WHERE codice=%s",
                          (self.adesso().isoformat(), codice))
             self._libera_slot(conn, codice)
         self.agenda.rimuovi(codice)
@@ -301,16 +305,16 @@ class ServizioPrenotazioni:
     def elenco(self, dal: date | None = None, al: date | None = None, stati: tuple[str, ...] | None = None) -> list[dict]:
         sql, par = "SELECT * FROM prenotazioni WHERE 1=1", []
         if dal:
-            sql += " AND inizio >= ?"; par.append(dal.isoformat())
+            sql += " AND inizio >= %s"; par.append(dal.isoformat())
         if al:
-            sql += " AND inizio < ?"; par.append((al + timedelta(days=1)).isoformat())
+            sql += " AND inizio < %s"; par.append((al + timedelta(days=1)).isoformat())
         if stati:
-            sql += f" AND stato IN ({','.join('?' * len(stati))})"; par += list(stati)
+            sql += f" AND stato IN ({','.join(['%s'] * len(stati))})"; par += list(stati)
         return [dict(r) for r in self.db.query(sql + " ORDER BY inizio", tuple(par))]
 
     def prenotazioni_di(self, cf: str) -> list[dict]:
         return [dict(r) for r in self.db.query(
-            "SELECT * FROM prenotazioni WHERE cf=? AND stato<>'SCADUTA' ORDER BY inizio DESC", (cf,))]
+            "SELECT * FROM prenotazioni WHERE cf=%s AND stato<>'SCADUTA' ORDER BY inizio DESC", (cf,))]
 
     # ------------------------------------------------------------ ticket e custode
     def firma(self, codice: str) -> str:
@@ -335,6 +339,6 @@ class ServizioPrenotazioni:
         if abs(inizio - self.adesso()) > timedelta(hours=2):
             return {**p, "esito": "FUORI_ORARIO"}
         with self.db.tx() as conn:
-            conn.execute("UPDATE prenotazioni SET stato='UTILIZZATA', aggiornata_il=? WHERE codice=?",
+            conn.execute("UPDATE prenotazioni SET stato='UTILIZZATA', aggiornata_il=%s WHERE codice=%s",
                          (self.adesso().isoformat(), codice))
         return {**self._riga(codice), "esito": "OK"}

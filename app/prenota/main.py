@@ -68,7 +68,7 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
                assistente: AssistenteIA | None = None) -> FastAPI:
     s = settings or Settings()
     spazio = s.spazio
-    db = Database(s.db_path)
+    db = Database(s.database_url, s.database_schema)
     pagamenti = MockPagoPA(s.base_url) if s.payment_backend == "mock" else None
     if pagamenti is None:  # pragma: no cover
         raise RuntimeError("PAYMENT_BACKEND non supportato in questo prototipo: usare 'mock'")
@@ -89,7 +89,8 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
     tpl.env.globals.update(ATTIVITA=ATTIVITA, SPAZIO=spazio, STATI=STATI_LEGGIBILI, STATI_SLOT=STATI_SLOT,
                            FONTE_TARIFFE=FONTE_TARIFFE,
                            ICO="/static/bootstrap-italia/dist/svg/sprites.svg")
-    app.state.servizio, app.state.pagamenti, app.state.settings = servizio, pagamenti, s
+    app.router.add_event_handler("shutdown", db.chiudi)
+    app.state.servizio, app.state.pagamenti, app.state.settings, app.state.db = servizio, pagamenti, s, db
     basic = HTTPBasic(realm="Spazio Comune")
 
     # ------------------------------------------------------------ helper
@@ -251,7 +252,7 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
     # ------------------------------------------------------------ pagoPA (simulato)
     @app.get("/pagopa-simulato/{iuv}", response_class=HTMLResponse)
     def pagopa_pagina(request: Request, iuv: str, ritorno: str):
-        righe = db.query("SELECT * FROM prenotazioni WHERE iuv=?", (iuv,))
+        righe = db.query("SELECT * FROM prenotazioni WHERE iuv=%s", (iuv,))
         if not righe:
             raise HTTPException(404)
         return render(request, "pagopa_simulato.html", {"p": dict(righe[0]), "iuv": iuv, "ritorno": ritorno})
@@ -340,7 +341,12 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
 
     @app.get("/api/v1/health")
     def health():
-        return {"stato": "ok", "ia": ia.attivo, "ora": servizio.adesso().isoformat()}
+        try:
+            db.query("SELECT 1")
+        except Exception:
+            log.exception("database non raggiungibile")
+            return JSONResponse({"stato": "errore", "database": "non raggiungibile"}, status_code=503)
+        return {"stato": "ok", "database": "ok", "ia": ia.attivo, "ora": servizio.adesso().isoformat()}
 
     @app.get("/api/v1/spazio")
     def api_spazio():

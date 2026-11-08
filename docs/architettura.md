@@ -23,7 +23,7 @@ flowchart LR
   end
   subgraph Stack["Docker Compose: un'installazione per luogo"]
     APP["spazio-comune-app<br/>FastAPI · Jinja2 · Bootstrap Italia<br/>:8000"]
-    DB[("SQLite /data/prenota.db<br/>volume dati<br/>prenotazioni · slot")]
+    DB[("spazio-comune-db<br/>PostgreSQL 17 · volume pgdati<br/>prenotazioni · slot")]
     INF["spazio-comune-inference<br/>IA: regole in italiano<br/>o LLM OpenAI-compatibile"]
     MCP["spazio-comune-mcp<br/>server MCP · :8090/mcp"]
     OLL[("spazio-comune-ollama<br/>LLM locale, opzionale")]
@@ -47,6 +47,7 @@ flowchart LR
 | Container | Ruolo | Porta |
 |---|---|---|
 | `spazio-comune-app` | sito, back-office, custode, API REST; **unico** a scrivere il database | 8000 |
+| `spazio-comune-db` | PostgreSQL 17: prenotazioni e slot (volume `pgdati`) | solo rete interna |
 | `spazio-comune-inference` | assistente IA (intenti e FAQ); non vede il database né i dati personali | solo rete interna |
 | `spazio-comune-mcp` | server MCP per altri agenti; usa solo le API dell'app | 127.0.0.1:8090 |
 | `spazio-comune-demo` | istanza con orologio fisso e dati fittizi (profilo `demo`) | 8001 |
@@ -55,24 +56,30 @@ flowchart LR
 
 ## Il database
 
-Un database c'è: **SQLite**, un file (`/data/prenota.db`) nel volume Docker `dati`. Per un luogo solo non
-serve un server di database: il backup è la copia di un file e non c'è un altro servizio da tenere aggiornato.
+Il database è **PostgreSQL 17**: il container `spazio-comune-db` (volume `pgdati`, solo rete interna) oppure un
+servizio gestito su cloud qualificato ACN, indicato con `DATABASE_URL`. Lo scrive solo l'app.
+
+Perché PostgreSQL:
+- è lo standard dei servizi gestiti sui cloud qualificati per la PA, con backup, cifratura, audit e ripristino a un istante preciso;
+- ha vincoli che rendono impossibili le sovrapposizioni;
+- supporta date con fuso orario;
+- permette a un Comune con più luoghi di tenerli tutti su un solo server, un database per luogo, con report complessivi.
 
 ```mermaid
 erDiagram
   PRENOTAZIONI {
     text codice PK "numero di prenotazione, es. GDC-7KQ2-M4XP"
     text attivita
-    text inizio
-    text fine
+    timestamptz inizio
+    timestamptz fine
     text stato "ATTESA_PAGAMENTO, CONFERMATA, UTILIZZATA, BLOCCO, ANNULLATA, SCADUTA"
     text iuv "pagoPA"
     text cognome
     text nome
   }
   SLOT {
-    text inizio PK
-    text fine
+    timestamptz inizio PK
+    timestamptz fine
     text codice_prenotazione FK "NULL = libero"
   }
   SLOT |o--o| PRENOTAZIONI : "occupato da"
@@ -84,13 +91,19 @@ erDiagram
 - La vista **`v_occupazione`** unisce le due tabelle: per ogni slot stato, numero, attività, intestatario.
   È la stessa informazione della griglia *Occupazione degli slot* in `/ufficio` e dell'API
   `/api/v1/ufficio/occupazione`.
-- Doppia prenotazione impossibile per costruzione: indice univoco sugli slot attivi, vincolo `UNIQUE` su
-  `slot.codice_prenotazione`, transazioni `BEGIN IMMEDIATE`. Un test lancia 40 prenotazioni simultanee sullo
-  stesso slot: ne passa una, le altre 39 ricevono "orario già prenotato".
+- Doppia prenotazione impossibile per costruzione, con tre vincoli del database:
+  - indice univoco sull'inizio delle prenotazioni attive;
+  - vincolo di esclusione `EXCLUDE USING gist (tstzrange(inizio, fine) WITH &&)`: due prenotazioni attive non si possono sovrapporre nel tempo, nemmeno con durate diverse o scrivendo a mano in tabella;
+  - `UNIQUE` su `slot.codice_prenotazione`.
+
+  Un test lancia 40 prenotazioni simultanee sullo stesso slot, su connessioni diverse: ne passa una, le altre 39
+  ricevono "orario già prenotato".
+- **Schemi.** L'app usa lo schema `public`; l'istanza demo usa lo schema `demo` (ricreato a ogni avvio); ogni
+  test crea ed elimina uno schema temporaneo.
 
 ```bash
-docker exec spazio-comune-app python -c "import sqlite3; [print(*r) for r in sqlite3.connect('/data/prenota.db').execute(
-  \"SELECT inizio, stato, codice_prenotazione, cognome FROM v_occupazione WHERE codice_prenotazione IS NOT NULL\")]"
+docker exec -it spazio-comune-db psql -U spazio -d spazio_comune -c \
+  "SELECT inizio, stato, codice_prenotazione, cognome FROM v_occupazione WHERE codice_prenotazione IS NOT NULL ORDER BY inizio"
 ```
 
 ## Struttura del repository
@@ -105,7 +118,7 @@ spazio-comune/
 │   │   ├── main.py           rotte cittadino, ufficio, custode, API REST
 │   │   ├── booking.py        slot, prenotazioni, pagamenti, check-in
 │   │   ├── catalog.py        il luogo (da .env), attività, tariffe
-│   │   ├── db.py             SQLite: prenotazioni, slot, v_occupazione
+│   │   ├── db.py             PostgreSQL: prenotazioni, slot, v_occupazione, vincoli
 │   │   ├── ai.py             client inferenza + base di conoscenza FAQ
 │   │   ├── adapters/         identity, payments, agenda
 │   │   └── templates/        Jinja2 + Bootstrap Italia
@@ -148,7 +161,7 @@ stateDiagram-v2
 |---|---|---|
 | SPID/CIE | `MockIdentity` | gateway del portale eCOMUNE o proxy SPID/CIE OIDC certificato |
 | pagoPA | `MockPagoPA` | `MyPaySILGateway`: `paaSILInviaDovuti` / `paaSILChiediPagati` con credenziali Regione Puglia |
-| Database | SQLite nel volume `dati` | invariato, con backup giornaliero cifrato; host su cloud qualificato ACN |
+| Database | PostgreSQL 17 in container (`spazio-comune-db`) | PostgreSQL gestito su cloud qualificato ACN (`DATABASE_URL` con `sslmode=require`), oppure il container con backup `pg_dump` cifrati |
 | IA | motore a regole | invariato, oppure LLM locale dopo la valutazione d'impatto |
 
 - [ ] Client SOAP MyPay SIL e job di verifica dei pagamenti in attesa

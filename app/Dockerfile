@@ -10,7 +10,7 @@ COPY prenota/ prenota/
 ARG BOOTSTRAP_ITALIA_VERSION=2.18.3
 RUN test -f prenota/static/bootstrap-italia/VERSION \
     || python scripts/fetch_bootstrap_italia.py ${BOOTSTRAP_ITALIA_VERSION}
-RUN useradd --system --uid 10001 prenota && mkdir -p /data && chown prenota /data
+RUN useradd --system --uid 10001 prenota
 USER prenota
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health').status==200 else 1)"

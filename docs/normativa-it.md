@@ -33,7 +33,7 @@ norma, cosa fa già il software e cosa resta da fare in fase di installazione e 
 
 - Una VM o un servizio container su cloud **qualificato ACN**, con almeno 1 vCPU e 1 GB di RAM per app e motore a regole. Un LLM locale (`--profile llm`) richiede almeno 4 vCPU e 8 GB di RAM.
 - Docker Engine e Compose v2, con aggiornamenti di sicurezza automatici del sistema operativo.
-- Database: SQLite va bene per il pilota; in esercizio PostgreSQL gestito (lo schema è portabile, l'indice univoco parziale è supportato).
+- Database: PostgreSQL 17. Si può usare il container `spazio-comune-db` del pacchetto oppure, meglio in esercizio, un **PostgreSQL gestito** sul cloud qualificato (`DATABASE_URL` con `sslmode=require`), che offre backup, cifratura a riposo e ripristino a un istante preciso.
 
 ### 2. Rete e HTTPS
 
@@ -73,9 +73,8 @@ in un vault o nei *secret* della piattaforma, non in chiaro sul disco.
 ### 4. Backup e continuità
 
 ```bash
-# backup giornaliero del database SQLite (volume "dati")
-docker run --rm -v spazio-comune_dati:/data -v /backup:/backup alpine \
-  sh -c 'cp /data/prenota.db /backup/prenota-$(date +%F).db'
+# backup giornaliero del database PostgreSQL (container spazio-comune-db)
+docker exec spazio-comune-db pg_dump -U spazio -Fc spazio_comune > /backup/spazio-comune-$(date +%F).dump
 ```
 
 Conservare i backup cifrati su un sito diverso e provare il ripristino almeno una volta prima del pilota.

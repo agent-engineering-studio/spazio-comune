@@ -1,4 +1,4 @@
-"""Persistenza su SQLite: un file nel volume Docker "dati" (/data/prenota.db).
+"""Persistenza su PostgreSQL (container spazio-comune-db, o servizio gestito in produzione).
 
 Due tabelle:
   - prenotazioni: una riga per prenotazione, con il numero (codice) e lo stato;
@@ -6,24 +6,35 @@ Due tabelle:
     della prenotazione che lo occupa (NULL se libero).
 La vista v_occupazione le unisce per una lettura immediata.
 
-L'indice univoco parziale sulle prenotazioni e il vincolo UNIQUE su
-slot.codice_prenotazione impediscono a livello di database la doppia
-prenotazione dello stesso orario: è l'invariante principale del sistema.
+La doppia prenotazione è impedita dal database, con tre vincoli indipendenti:
+  - indice univoco parziale sull'inizio delle prenotazioni attive;
+  - vincolo di esclusione sugli intervalli (tstzrange): due prenotazioni attive
+    non possono sovrapporsi nel tempo, nemmeno con durate diverse;
+  - UNIQUE su slot.codice_prenotazione.
+
+Gli orari sono timestamptz; verso l'applicazione escono come stringhe ISO 8601
+con il fuso Europe/Rome, così il resto del codice resta indipendente dal driver.
 """
 from __future__ import annotations
 
-import sqlite3
-import threading
+import re
 from contextlib import contextmanager
-from pathlib import Path
+from datetime import date, datetime
+from typing import Iterator
 
-SCHEMA = """
+from psycopg import Connection
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+
+ATTIVI = "('ATTESA_PAGAMENTO','CONFERMATA','BLOCCO','UTILIZZATA')"
+
+SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS prenotazioni (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     codice          TEXT NOT NULL UNIQUE,      -- numero di prenotazione, es. GDC-7KQ2-M4XP
     attivita        TEXT NOT NULL,
-    inizio          TEXT NOT NULL,             -- ISO 8601, ora locale Europe/Rome
-    fine            TEXT NOT NULL,
+    inizio          TIMESTAMPTZ NOT NULL,
+    fine            TIMESTAMPTZ NOT NULL CHECK (fine > inizio),
     stato           TEXT NOT NULL CHECK (stato IN
                       ('ATTESA_PAGAMENTO','CONFERMATA','ANNULLATA','SCADUTA','BLOCCO','UTILIZZATA')),
     canale          TEXT NOT NULL CHECK (canale IN ('ONLINE','SPORTELLO','UFFICIO')),
@@ -36,23 +47,26 @@ CREATE TABLE IF NOT EXISTS prenotazioni (
     email           TEXT,
     telefono        TEXT,
     note            TEXT,
-    creata_il       TEXT NOT NULL,
-    aggiornata_il   TEXT NOT NULL
+    creata_il       TIMESTAMPTZ NOT NULL,
+    aggiornata_il   TIMESTAMPTZ NOT NULL
 );
-CREATE UNIQUE INDEX IF NOT EXISTS ux_slot_attivo
-    ON prenotazioni (inizio)
-    WHERE stato IN ('ATTESA_PAGAMENTO','CONFERMATA','BLOCCO','UTILIZZATA');
+CREATE UNIQUE INDEX IF NOT EXISTS ux_slot_attivo ON prenotazioni (inizio) WHERE stato IN {ATTIVI};
 CREATE INDEX IF NOT EXISTS ix_iuv ON prenotazioni (iuv);
 CREATE INDEX IF NOT EXISTS ix_cf ON prenotazioni (cf);
+DO $$ BEGIN
+    ALTER TABLE prenotazioni ADD CONSTRAINT ex_nessuna_sovrapposizione
+        EXCLUDE USING gist (tstzrange(inizio, fine) WITH &&) WHERE (stato IN {ATTIVI});
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS slot (
-    inizio               TEXT PRIMARY KEY,     -- ISO 8601, ora locale Europe/Rome
-    fine                 TEXT NOT NULL,
+    inizio               TIMESTAMPTZ PRIMARY KEY,
+    fine                 TIMESTAMPTZ NOT NULL CHECK (fine > inizio),
     codice_prenotazione  TEXT UNIQUE REFERENCES prenotazioni (codice),  -- NULL = libero
-    aggiornato_il        TEXT NOT NULL
+    aggiornato_il        TIMESTAMPTZ NOT NULL
 );
 
-CREATE VIEW IF NOT EXISTS v_occupazione AS
+CREATE OR REPLACE VIEW v_occupazione AS
 SELECT s.inizio, s.fine,
        s.codice_prenotazione,
        CASE WHEN s.codice_prenotazione IS NULL THEN 'LIBERO' ELSE p.stato END AS stato,
@@ -60,45 +74,53 @@ SELECT s.inizio, s.fine,
 FROM slot s LEFT JOIN prenotazioni p ON p.codice = s.codice_prenotazione;
 """
 
+_NOME_SCHEMA = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
+
+
+def _in_uscita(riga: dict) -> dict:
+    """timestamptz -> ISO 8601 (Europe/Rome, fuso della sessione)."""
+    return {k: (v.isoformat() if isinstance(v, (datetime, date)) else v) for k, v in riga.items()}
+
 
 class Database:
-    def __init__(self, path: str):
-        self.path = path
-        if path != ":memory:":
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
-        self._migra_da_v1()
-        self._conn.executescript(SCHEMA)
-        if self._da_ricostruire_slot:
-            self._conn.execute(
-                "INSERT OR IGNORE INTO slot (inizio, fine, codice_prenotazione, aggiornato_il) "
-                "SELECT inizio, fine, codice, aggiornata_il FROM prenotazioni "
-                "WHERE stato IN ('ATTESA_PAGAMENTO','CONFERMATA','BLOCCO','UTILIZZATA')")
-        self._lock = threading.Lock()
+    """Pool di connessioni PostgreSQL.
 
-    def _migra_da_v1(self) -> None:
-        """La prima versione aveva una colonna "impianto" e nessuna tabella slot."""
-        colonne = {r[1] for r in self._conn.execute("PRAGMA table_info(prenotazioni)")}
-        self._da_ricostruire_slot = "impianto" in colonne
-        if self._da_ricostruire_slot:
-            self._conn.execute("DROP INDEX IF EXISTS ux_slot_attivo")
-            self._conn.execute("ALTER TABLE prenotazioni DROP COLUMN impianto")
+    `schema` separa più basi dati nello stesso database (es. "demo", o uno schema
+    per test); di norma è "public".
+    """
+
+    def __init__(self, url: str, schema: str = "public", max_connessioni: int = 10):
+        if not _NOME_SCHEMA.match(schema):
+            raise ValueError(f"Nome di schema non valido: {schema!r}")
+        self.schema = schema
+        self._pool = ConnectionPool(
+            url, min_size=1, max_size=max_connessioni, open=True, timeout=10,
+            kwargs={"autocommit": True, "row_factory": dict_row,
+                    "options": f"-c timezone=Europe/Rome -c search_path={schema}"})
+        with self._pool.connection() as conn, conn.transaction():
+            conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"spazio-comune:{schema}",))
+            conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
+            conn.execute(SCHEMA)
 
     @contextmanager
-    def tx(self):
-        """Transazione serializzata (BEGIN IMMEDIATE) per evitare race sugli slot."""
-        with self._lock:
-            self._conn.execute("BEGIN IMMEDIATE")
-            try:
-                yield self._conn
-                self._conn.execute("COMMIT")
-            except Exception:
-                self._conn.execute("ROLLBACK")
-                raise
+    def tx(self) -> Iterator[Connection]:
+        """Transazione: commit all'uscita, rollback su eccezione."""
+        with self._pool.connection() as conn, conn.transaction():
+            yield conn
 
-    def query(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
-        with self._lock:
-            return list(self._conn.execute(sql, params))
+    def query(self, sql: str, params: tuple = ()) -> list[dict]:
+        with self._pool.connection() as conn:
+            return [_in_uscita(r) for r in conn.execute(sql, params).fetchall()]
+
+    def azzera(self) -> None:
+        """Cancella tutti i dati dello schema (istanza demo, test)."""
+        with self.tx() as conn:
+            conn.execute("TRUNCATE slot, prenotazioni RESTART IDENTITY CASCADE")
+
+    def elimina_schema(self) -> None:
+        if self.schema != "public":
+            with self._pool.connection() as conn:
+                conn.execute(f'DROP SCHEMA IF EXISTS "{self.schema}" CASCADE')
+
+    def chiudi(self) -> None:
+        self._pool.close()

@@ -80,21 +80,31 @@ host diversi, oppure si cambia `container_name` nel `docker-compose.yml` della c
 
 ### Il database
 
-Il database è **SQLite**: un file `/data/prenota.db` nel volume `dati`, scritto solo dall'app. La tabella
-`slot` riporta per ogni orario il numero di prenotazione che lo occupa. Dettagli e modello dati in
+Il database è **PostgreSQL 17** nel container `spazio-comune-db` (volume `pgdati`, solo rete interna), creato
+al primo avvio con la password `POSTGRES_PASSWORD` del `.env`. La tabella `slot` riporta per ogni orario il
+numero di prenotazione che lo occupa. Dettagli e modello dati in
 [Architettura](architettura.md#il-database).
 
 ```bash
-docker exec spazio-comune-app python -c "import sqlite3; [print(*r) for r in sqlite3.connect('/data/prenota.db').execute(
-  \"SELECT inizio, stato, codice_prenotazione, cognome FROM v_occupazione WHERE codice_prenotazione IS NOT NULL\")]"
+docker exec -it spazio-comune-db psql -U spazio -d spazio_comune -c \
+  "SELECT inizio, stato, codice_prenotazione, cognome FROM v_occupazione WHERE codice_prenotazione IS NOT NULL ORDER BY inizio"
 ```
+
+```bash
+# backup e ripristino
+docker exec spazio-comune-db pg_dump -U spazio -Fc spazio_comune > spazio-comune-$(date +%F).dump
+docker exec -i spazio-comune-db pg_restore -U spazio -d spazio_comune --clean < spazio-comune-AAAA-MM-GG.dump
+```
+
+Con un PostgreSQL gestito basta impostare `DATABASE_URL` nel `.env`: l'app crea da sola tabelle, vincoli e
+vista al primo avvio.
 
 ### Comandi utili
 
 ```bash
 docker compose ps                         # stato dei container
 docker logs -f spazio-comune-app          # log dell'app
-docker compose down                       # ferma tutto (i dati restano nel volume "dati")
+docker compose down                       # ferma tutto (i dati restano nel volume "pgdati")
 docker compose down -v                    # ferma e cancella anche i dati
 ```
 
@@ -105,15 +115,17 @@ python3.12 -m venv .venv && . .venv/bin/activate
 pip install -r app/requirements.txt -r inference/requirements.txt -r mcp_server/requirements.txt pytest
 python app/scripts/fetch_bootstrap_italia.py     # solo se manca app/prenota/static/bootstrap-italia
 
+# un PostgreSQL 17 raggiungibile (anche solo il container: docker compose up -d db, con una porta pubblicata)
+export DATABASE_URL=postgresql://spazio:<password>@localhost:5432/spazio_comune
+
 # server di inferenza
 (cd inference && uvicorn server:app --port 8080) &
 
 # app
-(cd app && INFERENCE_URL=http://127.0.0.1:8080 DB_PATH=./prenota.db \
-   uvicorn --factory prenota.main:create_app --port 8000)
+(cd app && INFERENCE_URL=http://127.0.0.1:8080 uvicorn --factory prenota.main:create_app --port 8000)
 ```
 
-Istanza demo in locale: `INFERENCE_URL=http://127.0.0.1:8080 python app/scripts/demo.py`.
+Istanza demo in locale: `INFERENCE_URL=http://127.0.0.1:8080 python app/scripts/demo.py` (usa lo schema `demo`).
 
 ## Test
 

@@ -14,7 +14,7 @@ orari liberi, tariffe, regole e, per l'ufficio, i numeri di prenotazione.
 flowchart LR
   AG([Agente IA<br/>Claude · IDE · orchestratore]) -->|"MCP<br/>stdio o HTTP"| MCP["spazio-comune-mcp<br/>mcp_server/server.py"]
   MCP -->|"API REST /api/v1"| APP["spazio-comune-app"]
-  APP --> DB[("SQLite<br/>prenotazioni · slot")]
+  APP --> DB[("PostgreSQL<br/>prenotazioni · slot")]
   APP --> INF["spazio-comune-inference"]
   P([Persona]) -->|"apre il link<br/>SPID/CIE + pagoPA"| APP
 ```

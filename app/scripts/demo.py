@@ -4,7 +4,7 @@ Avvia l'app con un orologio che parte da un istante fisso (DEMO_ORA, di default
 lunedì 9 novembre 2026 ore 18:35) e scorre in tempo reale, e popola il database
 con prenotazioni di cittadini inventati. Nessun dato reale.
 
-    python app/scripts/demo.py            # http://localhost:8000
+    DATABASE_URL=postgresql://… python app/scripts/demo.py   # http://localhost:8000
     docker compose --profile demo up -d   # http://localhost:8001
 """
 from __future__ import annotations
@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from prenota.adapters.identity import Cittadino  # noqa: E402
 from prenota.booking import TZ, ErrorePrenotazione  # noqa: E402
 from prenota.config import Settings  # noqa: E402
+from prenota.db import Database  # noqa: E402
 from prenota.main import create_app  # noqa: E402
 
 CITTADINI = [  # nomi e codici fiscali inventati
@@ -89,12 +90,16 @@ def main() -> None:
     t0 = time.monotonic()
     adesso = lambda: partenza + timedelta(seconds=time.monotonic() - t0)  # noqa: E731
 
-    os.environ.setdefault("DB_PATH", str(Path(__file__).resolve().parents[2] / "demo.db"))
-    db = Path(os.environ["DB_PATH"])
-    for f in (db, db.with_name(db.name + "-wal"), db.with_name(db.name + "-shm")):
-        f.unlink(missing_ok=True)
+    # la demo vive in uno schema PostgreSQL a parte ("demo"), ricreato da zero a ogni avvio
+    os.environ.setdefault("DATABASE_SCHEMA", "demo")
+    settings = Settings()
+    if settings.database_schema == "public":
+        raise SystemExit("La demo cancella i dati del suo schema: usare DATABASE_SCHEMA diverso da public")
+    vecchio = Database(settings.database_url, settings.database_schema)
+    vecchio.elimina_schema()
+    vecchio.chiudi()
 
-    app = create_app(Settings(), adesso=adesso)
+    app = create_app(settings, adesso=adesso)
     popola(app, adesso())
     uvicorn.run(app, host=os.getenv("HOST", "127.0.0.1"), port=int(os.getenv("PORT", "8000")), log_level="warning")
 

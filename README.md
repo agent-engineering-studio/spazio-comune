@@ -93,7 +93,7 @@ flowchart LR
   end
   subgraph Stack["Docker Compose: un'installazione per luogo"]
     APP["spazio-comune-app<br/>FastAPI · Jinja2 · Bootstrap Italia<br/>:8000"]
-    DB[("SQLite /data/prenota.db<br/>volume dati<br/>prenotazioni · slot")]
+    DB[("spazio-comune-db<br/>PostgreSQL 17 · volume pgdati<br/>prenotazioni · slot")]
     INF["spazio-comune-inference<br/>IA: regole in italiano<br/>o LLM OpenAI-compatibile"]
     MCP["spazio-comune-mcp<br/>server MCP · :8090/mcp"]
     OLL[("spazio-comune-ollama<br/>LLM locale, opzionale")]
@@ -117,6 +117,7 @@ flowchart LR
 | Container | Ruolo | Porta |
 |---|---|---|
 | `spazio-comune-app` | sito, back-office, custode, API REST; scrive il database | 8000 |
+| `spazio-comune-db` | PostgreSQL 17: prenotazioni e slot | solo rete interna |
 | `spazio-comune-inference` | assistente IA (intenti e FAQ), non tocca il database | solo rete interna |
 | `spazio-comune-mcp` | server MCP per altri agenti; usa solo le API dell'app | 127.0.0.1:8090 |
 | `spazio-comune-demo` | istanza con orologio fisso e dati fittizi (profilo `demo`) | 8001 |
@@ -125,8 +126,9 @@ flowchart LR
 
 ### Il database
 
-Sì, c'è un database: **SQLite**, un unico file `/data/prenota.db` nel volume Docker `dati`, scritto solo
-dall'app. Per un luogo solo non serve un server di database separato: il backup è la copia di un file.
+Il database è **PostgreSQL 17**, nel container `spazio-comune-db` (volume `pgdati`, raggiungibile solo dalla rete
+interna di Compose), oppure un PostgreSQL gestito indicato con `DATABASE_URL`. Lo scrive solo l'app; inferenza e
+server MCP non vi accedono. Gli orari sono `timestamptz` con fuso Europe/Rome.
 
 | Tabella | Contenuto |
 |---|---|
@@ -134,13 +136,17 @@ dall'app. Per un luogo solo non serve un server di database separato: il backup 
 | `slot` | una riga per ogni orario del calendario, con **`codice_prenotazione`**: il numero della prenotazione che lo occupa (`NULL` = libero) |
 | `v_occupazione` | vista che unisce le due: per ogni slot stato, numero, attività, intestatario |
 
-La doppia prenotazione è impossibile per costruzione: indice univoco sugli slot attivi, vincolo `UNIQUE` su
-`slot.codice_prenotazione` e transazioni `BEGIN IMMEDIATE`. Annullamento e scadenza del pagamento liberano lo
-slot nella stessa transazione.
+La doppia prenotazione è impossibile per costruzione, con tre vincoli del database:
+- un indice univoco sull'inizio delle prenotazioni attive;
+- un vincolo di esclusione `EXCLUDE USING gist (tstzrange(inizio, fine) WITH &&)`: due prenotazioni attive non possono sovrapporsi nel tempo, nemmeno con durate diverse;
+- `UNIQUE` su `slot.codice_prenotazione`.
+
+Annullamento e scadenza del pagamento liberano lo slot nella stessa transazione. Backup:
+`docker exec spazio-comune-db pg_dump -U spazio -Fc spazio_comune > spazio-comune-$(date +%F).dump`.
 
 ```bash
-docker exec spazio-comune-app python -c "import sqlite3; [print(*r) for r in sqlite3.connect('/data/prenota.db').execute(
-  \"SELECT inizio, stato, codice_prenotazione, cognome FROM v_occupazione WHERE codice_prenotazione IS NOT NULL\")]"
+docker exec -it spazio-comune-db psql -U spazio -d spazio_comune -c \
+  "SELECT inizio, stato, codice_prenotazione, cognome FROM v_occupazione WHERE codice_prenotazione IS NOT NULL ORDER BY inizio"
 ```
 
 ### Configurazione `.env`
@@ -178,6 +184,13 @@ Un solo modello, **`.env.example`**: i valori funzionano subito in locale, e sop
 | `COOKIE_SECURE` | `false` | **`true`** | Cookie solo su HTTPS |
 | `PAYMENT_BACKEND` / `IDENTITY_BACKEND` | `mock` | `mock` fino all'integrazione di MyPay SIL e SPID/CIE | Simulazioni pagoPA e SPID/CIE |
 
+**Database**
+
+| Variabile | Sviluppo (predefinito) | Produzione | A cosa serve |
+|---|---|---|---|
+| `POSTGRES_PASSWORD` | `spazio-dev` | `openssl rand -hex 24`, scelta **prima del primo avvio** | Password del container `spazio-comune-db` (solo lettere e cifre) |
+| `DATABASE_URL` | vuoto = container `db` | PostgreSQL gestito: `postgresql://…?sslmode=require` | Connessione a un PostgreSQL esterno |
+
 **Intelligenza artificiale e MCP**
 
 | Variabile | Sviluppo (predefinito) | Produzione | A cosa serve |
@@ -189,7 +202,7 @@ Un solo modello, **`.env.example`**: i valori funzionano subito in locale, e sop
 | `MCP_ALLOWED_HOSTS` | `localhost:*,127.0.0.1:*` | host del reverse proxy | Header Host ammessi (protezione DNS rebinding) |
 | `DEMO_ORA` | `2026-11-09T18:35:00` | – | Solo istanza demo: istante di partenza dell'orologio |
 
-`DB_PATH` e `INFERENCE_URL` sono già impostati da `docker-compose.yml`. Dopo una modifica:
+`INFERENCE_URL` e `DATABASE_URL` (verso il container `db`) sono già impostati da `docker-compose.yml`. Dopo una modifica:
 `docker compose up -d --force-recreate`. Dettagli: [Configurazione](https://agentengineering.it/spazio-comune/configurazione/).
 
 ### IA
@@ -423,7 +436,7 @@ era già preso; ognuno dei 3 slot contesi ha un solo vincitore e nessuno slot è
 | Cloud | Regolamento ACN cloud PA | Hosting su servizio qualificato ACN |
 | Identità | CAD art. 64 | Gateway SPID/CIE al posto di `MockIdentity` |
 | Pagamenti | CAD art. 5, pagoPA | `MyPaySILGateway` con credenziali SIL di Regione Puglia |
-| Sicurezza | Misure minime ICT AgID | HTTPS, segreti, rate limiting, audit log, backup |
+| Sicurezza | Misure minime ICT AgID | HTTPS, segreti, rate limiting, audit log, backup `pg_dump` cifrati |
 | Accessibilità | L. 4/2004, WCAG 2.1 AA | Test utenti, dichiarazione di accessibilità |
 | Privacy | GDPR | Registro trattamenti, nomina responsabile, informativa RPD |
 | IA | AI Act art. 50, L. 132/2025, Linee guida AgID | Valutazione d'impatto prima di attivare un LLM |
@@ -436,9 +449,10 @@ era già preso; ognuno dei 3 slot contesi ha un solo vincitore e nessuno slot è
 ```bash
 python3.12 -m venv .venv && . .venv/bin/activate
 pip install -r app/requirements.txt -r inference/requirements.txt -r mcp_server/requirements.txt pytest
-pytest
+export DATABASE_URL=postgresql://spazio:<password>@localhost:5432/spazio_comune   # un PostgreSQL 17 raggiungibile
+TEST_DATABASE_URL=$DATABASE_URL pytest       # ogni test crea e poi elimina il suo schema
 (cd inference && uvicorn server:app --port 8080) &
-(cd app && INFERENCE_URL=http://127.0.0.1:8080 DB_PATH=./prenota.db uvicorn --factory prenota.main:create_app --port 8000)
+(cd app && INFERENCE_URL=http://127.0.0.1:8080 uvicorn --factory prenota.main:create_app --port 8000)
 ```
 
 ### Demo, video e documentazione

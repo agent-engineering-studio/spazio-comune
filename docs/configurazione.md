@@ -61,7 +61,9 @@ openssl rand -hex 24          # FEED_TOKEN
 |---|---|---|---|
 | `BASE_URL` | `http://localhost:8000` | `https://prenota.comune.<nome>.<pr>.it` | Indirizzo pubblico, **senza** `/` finale. Serve per il QR del ticket, il link del calendario iCal e l'URL di ritorno da pagoPA (i ritorni verso altri domini vengono rifiutati). |
 | `SECRET_KEY` | casuale a ogni avvio | `openssl rand -hex 32`, **fissa** | Firma i cookie di sessione e i **QR dei ticket** (HMAC). Se cambia, le sessioni si chiudono e **i QR già emessi non sono più validi**. |
-| `DB_PATH` | `/data/prenota.db` | invariato | File del database SQLite nel volume `dati`. Già impostato da `docker-compose.yml`, non va messo nel `.env`. |
+| `POSTGRES_PASSWORD` | `spazio-dev` | `openssl rand -hex 24` | Password dell'utente `spazio` del container `spazio-comune-db`. Solo lettere e cifre (finisce nell'URL di connessione). Va scelta **prima del primo avvio**: PostgreSQL la registra alla creazione del volume `pgdati`. |
+| `DATABASE_URL` | vuoto = container `db` | servizio gestito: `postgresql://…?sslmode=require` | Connessione a un PostgreSQL esterno. Vuoto: `docker-compose.yml` usa il container. |
+| `DATABASE_SCHEMA` | `public` | `public` | Schema PostgreSQL; la demo usa `demo`, i test uno schema temporaneo. |
 | `TTL_ATTESA_MIN` | `15` | `15` | Minuti per cui uno slot resta riservato mentre il cittadino paga; poi torna libero. Un pagamento tardivo conferma comunque la prenotazione se lo slot è ancora libero. |
 | `COOKIE_SECURE` | `false` | **`true`** | Cookie di sessione solo su HTTPS. `false` solo su `http://localhost`. |
 
