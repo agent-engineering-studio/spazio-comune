@@ -9,6 +9,7 @@ RUN pip install -r app-req.txt -r inf-req.txt -r mcp-req.txt pytest==9.1.1 pyyam
 COPY app/ app/
 COPY inference/ inference/
 COPY mcp_server/ mcp_server/
-COPY pytest.ini .
+COPY pytest.ini publiccode.yml ./
+COPY docs/screenshot/ docs/screenshot/
 RUN test -f app/prenota/static/bootstrap-italia/VERSION || python app/scripts/fetch_bootstrap_italia.py
 CMD ["pytest", "-q"]
