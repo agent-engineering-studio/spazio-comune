@@ -1,13 +1,19 @@
+# Scheda per il Catalogo del software di Developers Italia.
+# Validare con l'editor ufficiale: https://publiccode-editor.developers.italia.it/
 publiccodeYmlVersion: "0.4"
 name: Spazio Comune
 url: "https://github.com/agent-engineering-studio/spazio-comune.git"
 landingURL: "https://agentengineering.it/spazio-comune/"
-releaseDate: "2026-11-08"
+releaseDate: "2026-11-09"
 softwareVersion: "0.1.0"
 platforms: [web]
-categories: [booking-management, online-payments]
+categories: [online-booking, appointment-scheduling, digital-citizenship]
+usedBy: []
 developmentStatus: development
 softwareType: standalone/web
+intendedAudience:
+  scope: [local-authorities, sport]
+  countries: [it]
 description:
   it:
     shortDescription: Prenotazione degli spazi comunali con SPID/CIE, pagoPA, QR e assistente IA
@@ -25,6 +31,12 @@ description:
       - Pagamento pagoPA contestuale alla prenotazione
       - QR code firmato per il controllo accessi
       - Back-office con export CSV e feed iCal
+      - Server MCP per l'integrazione con assistenti e agenti
+      - Configurazione del luogo tramite file .env, database PostgreSQL
+    screenshots:
+      - docs/screenshot/01_home.png
+      - docs/screenshot/05_ticket.png
+      - docs/screenshot/07_ufficio.png
 legal:
   license: EUPL-1.2
   mainCopyrightOwner: Agent Engineering Studio
@@ -36,7 +48,7 @@ maintenance:
 localisation:
   localisationReady: false
   availableLanguages: [it]
-it:
+IT:
   countryExtensionVersion: "1.0"
   conforme:
     lineeGuidaDesign: true
@@ -45,3 +57,5 @@ it:
     spid: true
     cie: true
     pagopa: true
+  riuso:
+    codiceIPA: ""   # vuoto finché il software non è di proprietà di una PA

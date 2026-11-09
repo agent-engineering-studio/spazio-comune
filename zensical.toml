@@ -23,6 +23,7 @@ nav = [
     { "Benefici per il Comune" = "comune.md" },
     { "Conformità normativa" = "conformita.md" },
     { "Analisi e proposta" = "ANALISI.md" },
+    { "Riuso e Catalogo Developers Italia" = "riuso.md" },
   ] },
   { "Sviluppatori e IT" = [
     { "Installazione" = "installazione.md" },

@@ -5,7 +5,7 @@ WORKDIR /srv
 COPY app/requirements.txt app-req.txt
 COPY inference/requirements.txt inf-req.txt
 COPY mcp_server/requirements.txt mcp-req.txt
-RUN pip install -r app-req.txt -r inf-req.txt -r mcp-req.txt pytest==8.3.5
+RUN pip install -r app-req.txt -r inf-req.txt -r mcp-req.txt pytest==9.1.1 pyyaml==6.0.3
 COPY app/ app/
 COPY inference/ inference/
 COPY mcp_server/ mcp_server/
