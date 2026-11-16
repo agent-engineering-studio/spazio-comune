@@ -47,7 +47,7 @@
       {% if intento is defined %}
         <div class="mt-3" aria-live="polite">
         {% if proposte %}
-          <p class="mb-2"><strong>Ecco gli orari liberi più vicini alla tua richiesta</strong>
+          <p class="mb-2"><strong>{% if intento.data and proposte[0].data != intento.data %}Quel giorno non ci sono orari liberi: ecco i più vicini nei giorni successivi{% else %}Ecco gli orari liberi più vicini alla tua richiesta{% endif %}</strong>
             {% if intento.attivita %} per <em>{{ ATTIVITA[intento.attivita].nome }}</em>{% endif %}:</p>
           <ul class="list-unstyled d-flex flex-wrap gap-2">
           {% for s in proposte %}
@@ -99,7 +99,7 @@
         <div class="card-body p-3">
           <h3 class="h6 mb-1">{{ g.data|data_lunga|capitalize|replace(" " ~ dal.year, "") }}</h3>
           {% if not g.slot %}
-            <p class="small text-muted mb-0">Chiuso</p>
+            <p class="small text-muted mb-0">Chiuso{{ ' (festivo)' if g.festivo }}</p>
           {% else %}
             {% set impegnati = g.slot|selectattr("stato", "in", ["occupato", "in_pagamento", "riservato"])|list|length %}
             <p class="small mb-2"><span class="{{ 'text-success' if g.liberi else 'text-muted' }}">{{ g.liberi }} {{ 'libero' if g.liberi == 1 else 'liberi' }}</span>

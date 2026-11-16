@@ -370,7 +370,12 @@ def create_app(settings: Settings | None = None, adesso: Callable[[], datetime] 
         proposte = filtra_slot(servizio.disponibilita(dal, 7), intento)
         for p in proposte:
             p["link_prenotazione"] = f"{s.base_url}/prenota?inizio={quote(p['inizio'])}&attivita={intento['attivita']}"
-        return {"intento": intento, "proposte": proposte}
+        risposta = {"intento": intento, "proposte": proposte}
+        if not proposte:
+            risposta["messaggio"] = "Nessun orario libero corrispondente nei prossimi giorni: vedi /api/v1/disponibilita"
+        elif intento.get("data") and proposte[0]["data"] != intento["data"]:
+            risposta["messaggio"] = "Nessun orario libero nel giorno richiesto: le proposte sono nei giorni successivi"
+        return risposta
 
     @app.get("/api/v1/faq")
     def api_faq(domanda: str):

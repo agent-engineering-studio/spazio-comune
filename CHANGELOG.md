@@ -10,7 +10,13 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 ### Modificato
 - `publiccode.yml` allineato allo standard: categorie ammesse, sezione `IT` maiuscola, `codiceIPA` vuoto per il software di terze parti, schermate e pubblico di riferimento.
 
+### Corretto
+- Assistente (`/api/v1/assistente`, strumento MCP `cerca_orari`, sito): se il giorno richiesto è tutto impegnato propone gli orari liberi dei giorni successivi, con un messaggio che lo spiega, invece di non proporre nulla.
+
 ### Aggiunto
+- Orari con più intervalli al giorno (`SPAZIO_ORARIO=9-13,14-22`), orari per periodo dell'anno (`SPAZIO_ORARIO_PERIODI`) e chiusura fino alle 24.
+- Giorni festivi nazionali calcolati in automatico, chiusi per impostazione predefinita (`SPAZIO_FESTIVI`), e festività locali (`SPAZIO_FESTIVI_EXTRA`). Il calendario indica i giorni festivi con `festivo`.
+- Porte sull'host configurabili dal `.env`: `APP_PORT`, `MCP_PORT`, `DEMO_PORT`.
 - Guida al riuso e alla pubblicazione nel Catalogo Developers Italia (`docs/riuso.md`).
 - `CONTRIBUTING.md`, `SECURITY.md`, questo changelog.
 - Test di validità di `publiccode.yml`.

@@ -44,7 +44,8 @@ Gli strumenti dell'ufficio esistono solo se `MCP_UFFICIO_USER` e `MCP_UFFICIO_PA
 === "HTTP (container Docker)"
 
     Il container `spazio-comune-mcp` parte con lo stack e risponde su `http://localhost:8090/mcp`
-    (trasporto *streamable HTTP*, porta pubblicata solo su `127.0.0.1`).
+    (trasporto *streamable HTTP*, porta pubblicata solo su `127.0.0.1`). Se la 8090 è già occupata,
+    imposta `MCP_PORT` nel `.env` e usa quella porta negli indirizzi qui sotto.
 
     ```bash
     docker compose up -d
@@ -138,7 +139,7 @@ Richiesta di un agente a `cerca_orari` con `"tennis doppio domani sera"`:
 | `SPAZIO_COMUNE_URL` | `http://localhost:8000` | Indirizzo dell'app (in Docker `http://app:8000`). |
 | `MCP_TRANSPORT` | `stdio` | `stdio` oppure `http` (*streamable HTTP* su `/mcp`). Il container usa `http`. |
 | `MCP_HOST` / `MCP_PORT` | `127.0.0.1` / `8090` | Interfaccia e porta del trasporto HTTP. |
-| `MCP_ALLOWED_HOSTS` | `localhost:*,127.0.0.1:*` | Header `Host` ammessi; le richieste con altri host ricevono `400` (protezione da DNS rebinding). |
+| `MCP_ALLOWED_HOSTS` | `localhost:*,127.0.0.1:*` | Header `Host` ammessi; le richieste con altri host ricevono `421` (protezione da DNS rebinding). |
 | `SPAZIO_COMUNE_UFFICIO_USER` / `_PASSWORD` | vuote | Credenziali dell'ufficio; nel `.env` si chiamano `MCP_UFFICIO_USER` / `MCP_UFFICIO_PASSWORD`. |
 
 ## Sicurezza

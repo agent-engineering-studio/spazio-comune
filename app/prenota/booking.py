@@ -121,7 +121,7 @@ class ServizioPrenotazioni:
     # ------------------------------------------------------------ disponibilità
     def slot_teorici(self, giorno: date) -> list[tuple[datetime, datetime]]:
         out = []
-        for t in self.spazio.calendario.get(giorno.weekday(), ()):
+        for t in self.spazio.orari_del(giorno):
             inizio = datetime.combine(giorno, t, tzinfo=TZ)
             out.append((inizio, inizio + timedelta(minutes=self.spazio.durata_min)))
         return out
@@ -154,7 +154,8 @@ class ServizioPrenotazioni:
                              "stato_prenotazione": r["stato"] if r["codice_prenotazione"] else None,
                              "attivita": r.get("attivita"), "intestatario":
                                  " ".join(x for x in (r.get("cognome"), r.get("nome")) if x) or r.get("note")})
-            risultato.append({"data": g.isoformat(), "slot": slot, "liberi": sum(s["libero"] for s in slot)})
+            risultato.append({"data": g.isoformat(), "slot": slot, "liberi": sum(s["libero"] for s in slot),
+                              "festivo": self.spazio.festivo(g)})
         return risultato
 
     def disponibilita(self, dal: date | None = None, giorni: int = 7) -> list[dict]:

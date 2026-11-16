@@ -16,7 +16,7 @@ GIORNI = {"lunedi": 0, "martedi": 1, "mercoledi": 2, "giovedi": 3, "venerdi": 4,
 MESI = {m: i + 1 for i, m in enumerate(
     ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio",
      "agosto", "settembre", "ottobre", "novembre", "dicembre"])}
-FASCE = {"mattina": (8, 13), "pomeriggio": (13, 18), "sera": (18, 23)}
+FASCE = {"mattina": (8, 13), "pomeriggio": (13, 18), "sera": (18, 24)}
 STOP = set("il lo la i gli le un una di a da in con su per tra fra e o che non si ci mi ti come quanto quanti "
            "quando dove cosa qual quale è e' sono del della dei delle al alla ai alle nel nella posso devo "
            "voglio vorrei serve servono".split())

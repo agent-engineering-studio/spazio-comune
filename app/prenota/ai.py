@@ -81,28 +81,34 @@ class AssistenteIA:
             return None
 
 
-FASCE = {"mattina": (8, 13), "pomeriggio": (13, 18), "sera": (18, 23)}
+FASCE = {"mattina": (8, 13), "pomeriggio": (13, 18), "sera": (18, 24)}
 
 
 def filtra_slot(giorni: list[dict], intento: dict, massimo: int = 4) -> list[dict]:
     """Applica l'intento al calendario: slot liberi compatibili, ordinati per vicinanza alla richiesta.
 
-    Se l'ora esatta non è libera propone le alternative più vicine nello stesso giorno,
-    poi negli altri giorni: l'assistente suggerisce, il cittadino sceglie.
+    Se l'ora esatta non è libera propone le alternative più vicine nello stesso giorno;
+    se il giorno richiesto è tutto impegnato, quelle dei giorni successivi:
+    l'assistente suggerisce, il cittadino sceglie.
     """
-    candidati = []
-    for g in giorni:
-        if intento.get("data") and g["data"] != intento["data"]:
-            continue
-        for s in g["slot"]:
-            if not s["libero"]:
+    def candidati(nel_giorno: bool) -> list[tuple]:
+        trovati = []
+        for g in giorni:
+            if nel_giorno and g["data"] != intento["data"]:
                 continue
-            h = int(s["ora"][:2])
-            if intento.get("fascia") and not intento.get("ora"):
-                a, b = FASCE[intento["fascia"]]
-                if not a <= h < b:
+            for s in g["slot"]:
+                if not s["libero"]:
                     continue
-            distanza = abs(h - int(intento["ora"][:2])) if intento.get("ora") else 0
-            candidati.append((distanza, s["inizio"], {**s, "data": g["data"]}))
-    candidati.sort(key=lambda c: (c[0], c[1]))
-    return [c[2] for c in candidati[:massimo]]
+                h = int(s["ora"][:2])
+                if intento.get("fascia") and not intento.get("ora"):
+                    a, b = FASCE[intento["fascia"]]
+                    if not a <= h < b:
+                        continue
+                distanza = abs(h - int(intento["ora"][:2])) if intento.get("ora") else 0
+                # negli altri giorni conta prima il giorno più vicino, poi l'ora
+                chiave = (distanza, s["inizio"]) if nel_giorno or not intento.get("data") else (g["data"], distanza, s["inizio"])
+                trovati.append((chiave, {**s, "data": g["data"]}))
+        return sorted(trovati, key=lambda c: c[0])
+
+    scelti = candidati(nel_giorno=True) if intento.get("data") else []
+    return [c[1] for c in (scelti or candidati(nel_giorno=False))[:massimo]]

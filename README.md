@@ -68,7 +68,7 @@ valutazione ed estensione.
 cp .env.example .env                              # valori di sviluppo; per la produzione vedi i commenti
 docker compose up --build -d                      # app :8000 + IA + server MCP :8090
 docker compose --profile demo up --build -d       # + istanza con dati fittizi su http://localhost:8001
-docker compose --profile test run --rm test       # 84 test
+docker compose --profile test run --rm test       # 97 test
 docker compose --profile llm up --build -d        # + LLM locale con Ollama (opzionale)
 ```
 
@@ -163,7 +163,10 @@ Un solo modello, **`.env.example`**: i valori funzionano subito in locale, e sop
 | `SPAZIO_INDIRIZZO` | Via Benagiano, 70023 Gioia del Colle (BA) | indirizzo del luogo | Pagine, ticket, calendario |
 | `SPAZIO_ATTIVITA` | `calcetto,tennis_singolo,tennis_doppio` | attività ammesse | Sottoinsieme di quelle in `catalog.py` |
 | `SPAZIO_GIORNI` | `lun,mar,mer,gio,ven,sab` | come da atto dell'ufficio | Giorni di apertura |
-| `SPAZIO_ORARIO` | `15-22` | apertura-chiusura | Primo e ultimo slot (es. 15:00 … 21:00) |
+| `SPAZIO_ORARIO` | `15-22` | apertura-chiusura | Primo e ultimo slot (es. 15:00 … 21:00); più intervalli escludono le ore in mezzo: `9-13,14-22` |
+| `SPAZIO_ORARIO_PERIODI` | vuoto | periodi dell'ufficio | Orario diverso in un periodo dell'anno: `01/06-15/09=9-13,16-24` |
+| `SPAZIO_FESTIVI` | `chiuso` | `chiuso` · `aperto` · orario | Giorni festivi nazionali, calcolati in automatico (Pasqua compresa) |
+| `SPAZIO_FESTIVI_EXTRA` | vuoto | santo patrono | Festività locali: `26/05` (ogni anno) o `14/08/2027` |
 | `SPAZIO_DURATA_MIN` | `60` | `60` | Durata di uno slot |
 | `SPAZIO_PREAVVISO_GIORNI` | `14` | `14` | Quanti giorni avanti si può prenotare |
 | `CODICE_PREFISSO` | `GDC` | sigla del Comune | Prefisso dei numeri di prenotazione |
@@ -171,11 +174,24 @@ Un solo modello, **`.env.example`**: i valori funzionano subito in locale, e sop
 | `UFFICIO_NOME` | Ufficio Cultura, Istruzione e Sport | ufficio competente | Back-office, FAQ, contatti |
 | `FONTE_TARIFFE` | D.G.C. n. 37/2025 | estremi della delibera | Citata accanto ai prezzi |
 
+Gli slot esistono solo dentro gli orari dichiarati: il resto non è prenotabile per nessuna attività e da nessun
+canale (sito, API, MCP, back-office). Esempio con pausa pranzo, estate fino a mezzanotte e giorni rossi chiusi:
+
+```ini
+SPAZIO_ORARIO=9-13,14-22                         # pausa dalle 13 alle 14, ultimo slot alle 21:00
+SPAZIO_ORARIO_PERIODI=01/06-15/09=9-13,16-24     # solo dal 1° giugno al 15 settembre si gioca fino alle 24
+SPAZIO_FESTIVI=chiuso                            # festività nazionali calcolate ogni anno, Pasqua compresa
+SPAZIO_FESTIVI_EXTRA=26/05                       # festa patronale o altre chiusure ricorrenti
+```
+
+Chiusure occasionali (manutenzione, tornei) restano in `/ufficio` con *Riserva uno slot*.
+
 **Applicazione e sicurezza**
 
 | Variabile | Sviluppo (predefinito) | Produzione | A cosa serve |
 |---|---|---|---|
 | `BASE_URL` | `http://localhost:8000` | `https://prenota.comune.<nome>.it` | URL pubblico senza `/` finale: QR, iCal, ritorno da pagoPA |
+| `APP_PORT` / `MCP_PORT` / `DEMO_PORT` | `8000` / `8090` / `8001` | porte del reverse proxy | Porte sulla macchina che ospita Docker: da cambiare se già occupate (con `APP_PORT` aggiornare `BASE_URL`) |
 | `SECRET_KEY` | casuale a ogni avvio | `openssl rand -hex 32`, **fisso** | Firma sessioni e QR; se cambia, i QR emessi non valgono più |
 | `UFFICIO_USER` / `UFFICIO_PASSWORD` | `ufficio.sport` / `cambiami` | utente nominativo / `openssl rand -base64 24` | Back-office e API `/api/v1/ufficio/*` |
 | `CUSTODE_PASSWORD` | `custode` | `openssl rand -base64 18` | Pagina `/custode` (utente `custode`) |
@@ -222,8 +238,8 @@ Documentazione interattiva OpenAPI su **`/api/docs`**, schema su `/openapi.json`
 |---|---|---|
 | `GET /api/v1/health` | – | `{"stato":"ok","ia":true,"ora":"…"}`: stato dell'app e dell'assistente |
 | `GET /api/v1/spazio` | – | il luogo: nome, indirizzo, Comune, ufficio, orario, durata slot, preavviso, attività con `tariffa_cent`, `url` |
-| `GET /api/v1/disponibilita` | `dal` (AAAA-MM-GG, predefinito oggi), `giorni` (1-14, predefinito 7) | per giorno: `data`, `liberi`, `slot[]` con `inizio`, `fine`, `ora`, `libero`, `stato` (`libero` · `occupato` · `in_pagamento` · `riservato` · `passato`) |
-| `GET /api/v1/assistente` | `testo` (max 500 caratteri), es. *calcetto venerdì sera alle 20* | `intento` (attività, data, fascia, ora, `backend`, `generato_da_ia`) e fino a 4 `proposte` con `link_prenotazione` |
+| `GET /api/v1/disponibilita` | `dal` (AAAA-MM-GG, predefinito oggi), `giorni` (1-14, predefinito 7) | per giorno: `data`, `liberi`, `festivo`, `slot[]` con `inizio`, `fine`, `ora`, `libero`, `stato` (`libero` · `occupato` · `in_pagamento` · `riservato` · `passato`) |
+| `GET /api/v1/assistente` | `testo` (max 500 caratteri), es. *calcetto venerdì sera alle 20* | `intento` (attività, data, fascia, ora, `backend`, `generato_da_ia`) e fino a 4 `proposte` con `link_prenotazione`; se il giorno richiesto è pieno le proposte sono nei giorni successivi e `messaggio` lo spiega |
 | `GET /api/v1/faq` | `domanda` (max 500 caratteri) | `risposta`, `fonti`, `trovata`, `backend`, `generato_da_ia` |
 
 #### API dell'ufficio (Basic auth `UFFICIO_USER` / `UFFICIO_PASSWORD`)
@@ -320,7 +336,7 @@ link da aprire per completare con SPID/CIE e pagoPA.
 
 | Modalità | Indirizzo / comando | Quando usarla |
 |---|---|---|
-| **Streamable HTTP** (container `spazio-comune-mcp`) | **`http://localhost:8090/mcp`** | agenti sulla stessa macchina; con `docker compose up -d` è già attivo |
+| **Streamable HTTP** (container `spazio-comune-mcp`) | **`http://localhost:8090/mcp`** | agenti sulla stessa macchina; con `docker compose up -d` è già attivo (porta diversa: `MCP_PORT` nel `.env`) |
 | **stdio** | `python mcp_server/server.py` (con `SPAZIO_COMUNE_URL`) | client desktop e IDE che avviano il server come processo |
 | HTTP dietro reverse proxy | `https://mcp.comune.<nome>.it/mcp` | agenti su altre macchine: con autenticazione sul proxy e l'host in `MCP_ALLOWED_HOSTS` |
 
@@ -412,7 +428,7 @@ curl -i -X POST http://localhost:8090/mcp \
 poi si usa `http://localhost:8091/mcp`.
 
 **Sicurezza.** La porta 8090 è pubblicata solo su `127.0.0.1`; una richiesta con un header `Host` non presente in
-`MCP_ALLOWED_HOSTS` riceve `400` (protezione da DNS rebinding). Le istruzioni del server dicono all'agente di non
+`MCP_ALLOWED_HOSTS` riceve `421` (protezione da DNS rebinding). Le istruzioni del server dicono all'agente di non
 chiedere né inviare codice fiscale, telefono o email. Pagina dedicata:
 [Server MCP](https://agentengineering.it/spazio-comune/mcp/).
 

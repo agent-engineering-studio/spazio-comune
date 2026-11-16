@@ -32,7 +32,7 @@ services:
   app:
     container_name: spazio-comune-app
     build: ./app
-    ports: ["8000:8000"]
+    ports: ["${APP_PORT:-8000}:8000"]          # porta sull'host: APP_PORT nel .env (e BASE_URL coerente)
     env_file: [.env]
     environment:
       INFERENCE_URL: http://inference:8080
@@ -62,7 +62,7 @@ services:
   mcp:
     container_name: spazio-comune-mcp
     build: ./mcp_server
-    ports: ["127.0.0.1:8090:8090"]     # http://localhost:8090/mcp, solo dalla macchina locale
+    ports: ["127.0.0.1:${MCP_PORT:-8090}:8090"]     # http://localhost:8090/mcp, solo dalla macchina locale; MCP_PORT nel .env
     environment:
       SPAZIO_COMUNE_URL: http://app:8000
       MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost:*,127.0.0.1:*}
@@ -95,12 +95,12 @@ services:
     build: ./app
     profiles: ["demo"]
     command: ["python", "scripts/demo.py"]
-    ports: ["8001:8000"]
+    ports: ["${DEMO_PORT:-8001}:8000"]
     env_file: [.env]                   # stesso luogo (SPAZIO_*, COMUNE_*); i valori sotto prevalgono
     environment:
       HOST: 0.0.0.0
       PORT: "8000"
-      BASE_URL: http://localhost:8001
+      BASE_URL: http://localhost:${DEMO_PORT:-8001}
       DATABASE_URL: *database-url
       DATABASE_SCHEMA: demo                # schema a parte, ricreato a ogni avvio della demo
       INFERENCE_URL: http://inference:8080

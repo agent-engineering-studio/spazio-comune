@@ -1,6 +1,6 @@
 """Un solo luogo configurato da .env, tabella slot con numero di prenotazione, API per agenti."""
 import threading
-from datetime import time
+from datetime import date, time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,7 +9,7 @@ from psycopg.errors import IntegrityError
 from prenota.adapters.identity import Cittadino
 from prenota.ai import AssistenteIA
 from prenota.booking import ErrorePrenotazione
-from prenota.catalog import Spazio
+from prenota.catalog import Spazio, festivita_nazionali, pasqua
 from prenota.main import create_app
 
 from test_web import VEN_20, _prenota_e_paga
@@ -43,7 +43,48 @@ def test_spazio_predefinito_senza_env():
     assert sorted(s.calendario) == [0, 1, 2, 3, 4, 5] and len(s.calendario[0]) == 7
 
 
-@pytest.mark.parametrize("chiave,valore", [("SPAZIO_ATTIVITA", "nuoto"), ("SPAZIO_GIORNI", "lunedi,xyz")])
+def test_orario_con_pausa_periodo_estivo_e_festivi():
+    s = Spazio.da_env({"SPAZIO_GIORNI": "lun,mar,mer,gio,ven,sab,dom", "SPAZIO_ORARIO": "9-13,14-22",
+                       "SPAZIO_ORARIO_PERIODI": "01/06-15/09=9-13,16-24; 20/12-06/01=15-20",
+                       "SPAZIO_FESTIVI_EXTRA": "26/05,14/08/2027"})
+    ore = lambda g: [t.hour for t in s.orari_del(g)]
+    assert ore(date(2026, 11, 18)) == [9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21]   # pausa 13-14, mai a mezzanotte
+    assert ore(date(2026, 7, 10)) == [9, 10, 11, 12, 16, 17, 18, 19, 20, 21, 22, 23]    # estate: fino alle 24
+    assert ore(date(2027, 1, 4)) == [15, 16, 17, 18, 19] and ore(date(2027, 1, 7))[0] == 9   # periodo a cavallo dell'anno
+    # giorni rossi: chiusi in automatico, anche dentro un periodo
+    for festa in (date(2026, 12, 8), date(2026, 12, 25), date(2026, 8, 15), date(2027, 3, 29), date(2027, 5, 26), date(2027, 8, 14)):
+        assert s.festivo(festa) and ore(festa) == []
+    assert not s.festivo(date(2026, 8, 14)) and ore(date(2026, 8, 14))        # extra valido solo nel 2027
+    assert "09:00–13:00, 14:00–22:00" in s.orario_leggibile and "dal 01/06 al 15/09: 09:00–13:00, 16:00–24:00" in s.orario_leggibile
+    assert s.orario_leggibile.endswith("nei giorni festivi: chiuso")
+
+
+def test_festivita_nazionali_e_orario_festivo():
+    assert pasqua(2026) == date(2026, 4, 5) and pasqua(2027) == date(2027, 3, 28) and pasqua(2038) == date(2038, 4, 25)
+    feste = festivita_nazionali(2027)
+    assert {date(2027, 1, 1), date(2027, 3, 29), date(2027, 4, 25), date(2027, 6, 2), date(2027, 10, 4), date(2027, 12, 26)} <= feste
+    assert len(feste) == 13 and date(2025, 10, 4) not in festivita_nazionali(2025)
+    aperto = Spazio.da_env({"SPAZIO_FESTIVI": "aperto"})
+    assert len(aperto.orari_del(date(2026, 12, 8))) == 7 and "festivi" not in aperto.orario_leggibile
+    ridotto = Spazio.da_env({"SPAZIO_FESTIVI": "16-19"})
+    assert [t.hour for t in ridotto.orari_del(date(2026, 12, 8))] == [16, 17, 18]
+    assert ridotto.orari_del(date(2026, 12, 25)) == ridotto.orari_del(date(2026, 12, 8))
+    assert ridotto.orari_del(date(2027, 3, 28)) == ()    # Pasqua è domenica: il luogo è chiuso comunque
+
+
+def test_giorno_festivo_non_prenotabile(servizio, orologio, mario):
+    orologio.avanza(days=22)   # martedì 1 dicembre 2026
+    immacolata = servizio.disponibilita(date(2026, 12, 8), 1)[0]
+    assert immacolata["festivo"] is True and immacolata["slot"] == []
+    with pytest.raises(ErrorePrenotazione, match="calendario"):
+        servizio.prenota("calcetto", "2026-12-08T18:00:00+01:00", mario)
+    assert servizio.disponibilita(date(2026, 12, 9), 1)[0]["festivo"] is False
+
+
+@pytest.mark.parametrize("chiave,valore", [
+    ("SPAZIO_ATTIVITA", "nuoto"), ("SPAZIO_GIORNI", "lunedi,xyz"), ("SPAZIO_ORARIO", "22-15"), ("SPAZIO_ORARIO", "9-25"),
+    ("SPAZIO_ORARIO", "mattina"), ("SPAZIO_ORARIO_PERIODI", "estate=9-13"), ("SPAZIO_ORARIO_PERIODI", "31/02-15/09=9-13"),
+    ("SPAZIO_FESTIVI", "forse"), ("SPAZIO_FESTIVI_EXTRA", "26 maggio"), ("SPAZIO_FESTIVI_EXTRA", "26/05/27")])
 def test_spazio_env_non_valido(chiave, valore):
     with pytest.raises(ValueError):
         Spazio.da_env({chiave: valore})
@@ -191,3 +232,19 @@ def test_api_assistente_faq_e_ufficio(app_client):
     det = app_client.get(f"/api/v1/ufficio/prenotazioni/{codice}", auth=("u", "p")).json()
     assert det["stato"] == "CONFERMATA" and "cf" not in det
     assert app_client.get("/api/v1/ufficio/prenotazioni/GDC-XXXX-XXXX", auth=("u", "p")).status_code == 404
+
+
+def test_assistente_giorno_pieno_propone_i_giorni_successivi(app_client):
+    servizio = app_client.app.state.servizio
+    venerdi = servizio.disponibilita(date(2026, 11, 13), 1)[0]
+    for s in venerdi["slot"]:
+        servizio.blocca(s["inizio"], "Torneo")
+    r = app_client.get("/api/v1/assistente", params={"testo": "calcetto venerdì sera alle 20"}).json()
+    assert r["intento"]["data"] == "2026-11-13" and "giorni successivi" in r["messaggio"]
+    assert [(p["data"], p["ora"]) for p in r["proposte"]][:3] == [
+        ("2026-11-14", "20:00"), ("2026-11-14", "19:00"), ("2026-11-14", "21:00")]
+    # giorno e fascia in cui il campo è chiuso: nessuna proposta, ma con una spiegazione
+    r = app_client.get("/api/v1/assistente", params={"testo": "calcetto domenica mattina"}).json()
+    assert r["proposte"] == [] and "disponibilita" in r["messaggio"]
+    # giorno con posti liberi: nessun messaggio
+    assert "messaggio" not in app_client.get("/api/v1/assistente", params={"testo": "calcetto sabato sera"}).json()

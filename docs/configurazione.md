@@ -40,10 +40,32 @@ openssl rand -hex 24          # FEED_TOKEN
 | `SPAZIO_INDIRIZZO` | Via Benagiano, 70023 Gioia del Colle (BA) | indirizzo completo | Pagine, ticket, campo *luogo* degli eventi iCal. |
 | `SPAZIO_ATTIVITA` | `calcetto,tennis_singolo,tennis_doppio` | attività ammesse dall'atto dell'ufficio | Sottoinsieme delle attività definite in `app/prenota/catalog.py`, dove si aggiungono attività nuove con la loro tariffa. Un valore sconosciuto blocca l'avvio con un messaggio chiaro. |
 | `SPAZIO_GIORNI` | `lun,mar,mer,gio,ven,sab` | calendario dell'ufficio | Giorni di apertura (`lun` … `dom`). |
-| `SPAZIO_ORARIO` | `15-22` | fascia dell'ufficio | Apertura e chiusura in ore intere: con slot da 60 minuti il primo è alle 15:00, l'ultimo alle 21:00. Chiusure straordinarie: *Riserva uno slot* in `/ufficio`. |
+| `SPAZIO_ORARIO` | `15-22` | orario dell'ufficio | Apertura e chiusura in ore intere (chiusura fino a `24`): con slot da 60 minuti il primo è alle 15:00, l'ultimo alle 21:00. Più intervalli separati da virgola escludono le ore in mezzo per ogni attività: `9-13,14-22` toglie la pausa 13–14. Chiusure straordinarie: *Riserva uno slot* in `/ufficio`. |
+| `SPAZIO_ORARIO_PERIODI` | vuoto | periodi dell'atto dell'ufficio | Orari che sostituiscono `SPAZIO_ORARIO` in alcuni periodi, ogni anno: `GG/MM-GG/MM=orari`, più periodi separati da `;`. Esempio: `01/06-15/09=9-13,16-24;20/12-06/01=15-20`. |
+| `SPAZIO_FESTIVI` | `chiuso` | `chiuso`, `aperto` o un orario | Giorni festivi nazionali, calcolati in automatico ogni anno (Pasqua e Lunedì dell'Angelo compresi): `chiuso`, `aperto` (come un giorno normale) oppure un orario festivo, es. `16-20`. |
+| `SPAZIO_FESTIVI_EXTRA` | vuoto | santo patrono | Festività locali o chiusure ricorrenti: `GG/MM` (ogni anno) o `GG/MM/AAAA`, separate da virgola. |
 | `SPAZIO_DURATA_MIN` | `60` | `60` | Durata di uno slot. |
 | `SPAZIO_PREAVVISO_GIORNI` | `14` | `14` | Quanti giorni in anticipo si può prenotare. |
 | `CODICE_PREFISSO` | `GDC` | sigla del Comune o del luogo | Prefisso dei numeri di prenotazione (`GDC-7KQ2-M4XP`); non va cambiato dopo l'avvio. |
+
+### Orari, pause, periodi e festivi
+
+Gli slot esistono solo dentro gli orari dichiarati: tutto il resto non è prenotabile, per nessuna attività
+e da nessun canale (sito, API, server MCP, back-office).
+
+```ini
+SPAZIO_GIORNI=lun,mar,mer,gio,ven,sab
+SPAZIO_ORARIO=9-13,14-22                         # pausa dalle 13 alle 14, ultimo slot 21:00
+SPAZIO_ORARIO_PERIODI=01/06-15/09=9-13,16-24     # solo d'estate si gioca fino a mezzanotte
+SPAZIO_FESTIVI=chiuso                            # giorni rossi chiusi, calcolati in automatico
+SPAZIO_FESTIVI_EXTRA=26/05                       # festa patronale
+```
+
+Per ogni data l'ordine è: giorno della settimana non in `SPAZIO_GIORNI` → chiuso; giorno festivo →
+`SPAZIO_FESTIVI`; data dentro un periodo → orario del periodo; altrimenti `SPAZIO_ORARIO`. Le festività nazionali
+sono quelle civili italiane (dal 2026 anche il 4 ottobre); l'ultimo slot può finire alle 24:00, non iniziare dopo
+mezzanotte. Se si restringe l'orario, le prenotazioni già registrate in quegli slot restano valide nell'elenco
+dell'ufficio ma non compaiono più nella griglia: vanno gestite a mano.
 
 ## Il Comune
 
@@ -60,6 +82,7 @@ openssl rand -hex 24          # FEED_TOKEN
 | Variabile | Sviluppo (predefinito) | Produzione | Descrizione |
 |---|---|---|---|
 | `BASE_URL` | `http://localhost:8000` | `https://prenota.comune.<nome>.<pr>.it` | Indirizzo pubblico, **senza** `/` finale. Serve per il QR del ticket, il link del calendario iCal e l'URL di ritorno da pagoPA (i ritorni verso altri domini vengono rifiutati). |
+| `APP_PORT` | `8000` | porta a cui punta il reverse proxy | Porta dell'app sull'host. Se si cambia in locale, aggiornare anche `BASE_URL`. |
 | `SECRET_KEY` | casuale a ogni avvio | `openssl rand -hex 32`, **fissa** | Firma i cookie di sessione e i **QR dei ticket** (HMAC). Se cambia, le sessioni si chiudono e **i QR già emessi non sono più validi**. |
 | `POSTGRES_PASSWORD` | `spazio-dev` | `openssl rand -hex 24` | Password dell'utente `spazio` del container `spazio-comune-db`. Solo lettere e cifre (finisce nell'URL di connessione). Va scelta **prima del primo avvio**: PostgreSQL la registra alla creazione del volume `pgdati`. |
 | `DATABASE_URL` | vuoto = container `db` | servizio gestito: `postgresql://…?sslmode=require` | Connessione a un PostgreSQL esterno. Vuoto: `docker-compose.yml` usa il container. |
@@ -105,6 +128,7 @@ Lette dal container `spazio-comune-mcp`. Dettagli in [Server MCP](mcp.md).
 | Variabile | Sviluppo (predefinito) | Produzione | Descrizione |
 |---|---|---|---|
 | `MCP_ALLOWED_HOSTS` | `localhost:*,127.0.0.1:*` | + host del reverse proxy, se esposto | Header `Host` ammessi: protezione da DNS rebinding. La porta 8090 è pubblicata solo su `127.0.0.1`. |
+| `MCP_PORT` | `8090` | `8090` | Porta del server MCP sull'host, pubblicata solo su `127.0.0.1`. Da cambiare se è già occupata: l'indirizzo diventa `http://localhost:<porta>/mcp`. |
 | `MCP_UFFICIO_USER` / `MCP_UFFICIO_PASSWORD` | vuote | vuote, o un utente dedicato | Abilitano gli strumenti dell'ufficio con i numeri di prenotazione (`occupazione_slot`, `dettaglio_prenotazione`). Vuote = strumenti spenti. |
 
 ## Istanza demo
@@ -114,6 +138,7 @@ Lette solo da `app/scripts/demo.py` (servizio `spazio-comune-demo`).
 | Variabile | Predefinito | Descrizione |
 |---|---|---|
 | `DEMO_ORA` | `2026-11-09T18:35:00` | Istante da cui parte l'orologio della demo (ora di Roma). Scegli un giorno da lunedì a sabato prima delle 19 per avere ingressi da verificare. |
+| `DEMO_PORT` | `8001` | Porta dell'istanza demo sull'host. |
 | `HOST` / `PORT` | `127.0.0.1` / `8000` | Interfaccia e porta del server demo. |
 
 ## Esempio di `.env` di produzione

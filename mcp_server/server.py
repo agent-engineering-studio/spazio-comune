@@ -96,6 +96,7 @@ def crea_server(app: ClientApp | None = None) -> FastMCP:
         """Calendario degli slot da `dal` (AAAA-MM-GG, predefinito oggi) per `giorni` giorni (1-14).
 
         Ogni slot ha uno stato: libero, occupato, in_pagamento, riservato (dall'ufficio) o passato.
+        Un giorno senza slot è chiuso; `festivo` indica i giorni festivi.
         Con solo_liberi=true restituisce soltanto gli slot prenotabili.
         """
         cal = app.get("/api/v1/disponibilita", dal=_data(dal, "dal"), giorni=max(1, min(giorni, 14)))
