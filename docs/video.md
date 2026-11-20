@@ -32,9 +32,9 @@ I video vengono registrati da Playwright, che percorre da solo l'istanza demo, e
 pip install playwright && playwright install chromium
 docker compose --profile demo up --build -d
 
-python app/scripts/registra_demo.py               # 16:9 → docs/demo/spazio-comune-demo.{mp4,gif}
+python app/scripts/record_demo.py               # 16:9 → docs/demo/spazio-comune-demo.{mp4,gif}
 docker compose restart demo                       # ogni registrazione consuma uno slot e un ingresso
-python app/scripts/registra_demo.py --verticale   # 9:16 → docs/demo/spazio-comune-demo-verticale.mp4
+python app/scripts/record_demo.py --verticale   # 9:16 → docs/demo/spazio-comune-demo-verticale.mp4
 ```
 
-Le didascalie sono in `app/scripts/registra_demo.py`; i dati fittizi in `app/scripts/demo.py`.
+Le didascalie sono in `app/scripts/record_demo.py`; i dati fittizi in `app/scripts/demo.py`.

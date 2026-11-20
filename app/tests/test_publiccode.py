@@ -3,21 +3,21 @@ from pathlib import Path
 
 import yaml
 
-RADICE = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[2]
 
 # Sottoinsieme dei valori ammessi dallo standard publiccode.yml (campo categories)
-CATEGORIE_AMMESSE = {
+ALLOWED_CATEGORIES = {
     "online-booking", "appointment-scheduling", "digital-citizenship", "payment-gateway",
     "facility-management", "resource-management", "event-management", "other",
 }
 
 
-def test_publiccode_yml_valido():
-    pc = yaml.safe_load((RADICE / "publiccode.yml").read_text())
-    for chiave in ("publiccodeYmlVersion", "name", "url", "platforms", "developmentStatus",
+def test_publiccode_yml_valid():
+    pc = yaml.safe_load((ROOT / "publiccode.yml").read_text())
+    for key in ("publiccodeYmlVersion", "name", "url", "platforms", "developmentStatus",
                    "softwareType", "description", "legal", "maintenance", "localisation"):
-        assert chiave in pc, chiave
-    assert set(pc["categories"]) <= CATEGORIE_AMMESSE
+        assert key in pc, key
+    assert set(pc["categories"]) <= ALLOWED_CATEGORIES
     it = pc["description"]["it"]
     assert it["shortDescription"] and it["longDescription"] and it["features"]
     assert len(it["shortDescription"]) <= 150
@@ -29,4 +29,4 @@ def test_publiccode_yml_valido():
     # software open source di terze parti: codiceIPA vuoto (guida Developers Italia, passo 8)
     assert pc["IT"]["riuso"]["codiceIPA"] == ""
     for s in it.get("screenshots", []):
-        assert (RADICE / s).exists(), s
+        assert (ROOT / s).exists(), s

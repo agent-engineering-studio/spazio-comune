@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Accedi{% endblock %}
+{% block main %}
+<div class="row justify-content-center"><div class="col-lg-6">
+  <h1>Accedi per prenotare</h1>
+  <p>Per prenotare e pagare serve l'identità digitale (art. 64 del Codice dell'Amministrazione Digitale). Nome, cognome e codice fiscale verranno compilati in automatico.</p>
+  {% if mock_identity %}
+  <div class="d-grid gap-2">
+    <a class="btn btn-primary btn-lg" href="/auth/simulato?ritorno={{ return_url|urlencode }}">Entra con SPID</a>
+    <a class="btn btn-outline-primary btn-lg" href="/auth/simulato?ritorno={{ return_url|urlencode }}">Entra con CIE</a>
+  </div>
+  <div class="alert alert-info mt-3" role="note">Ambiente dimostrativo: l'accesso è simulato con un utente di prova.</div>
+  {% else %}
+  <div class="d-grid gap-2">
+    <a class="btn btn-primary btn-lg" href="/auth/oidc/avvia?ritorno={{ return_url|urlencode }}">Entra con SPID o CIE</a>
+  </div>
+  <p class="small text-muted mt-3">Verrai indirizzato al servizio di accesso del {{ VENUE.municipality }}, dove scegliere SPID o Carta d'Identità Elettronica.</p>
+  {% endif %}
+</div></div>
+{% endblock %}

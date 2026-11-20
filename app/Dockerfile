@@ -5,13 +5,13 @@ WORKDIR /srv/app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 COPY scripts/ scripts/
-COPY prenota/ prenota/
+COPY venue_booking/ venue_booking/
 # Bootstrap Italia ospitato in locale, con verifica di integrità sha512 dal registry npm
 ARG BOOTSTRAP_ITALIA_VERSION=2.18.3
-RUN test -f prenota/static/bootstrap-italia/VERSION \
+RUN test -f venue_booking/static/bootstrap-italia/VERSION \
     || python scripts/fetch_bootstrap_italia.py ${BOOTSTRAP_ITALIA_VERSION}
-RUN useradd --system --uid 10001 prenota
-USER prenota
+RUN useradd --system --uid 10001 venuebooking
+USER venuebooking
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health').status==200 else 1)"
-CMD ["uvicorn", "--factory", "prenota.main:create_app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+CMD ["uvicorn", "--factory", "venue_booking.main:create_app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

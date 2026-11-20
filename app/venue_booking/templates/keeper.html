@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Custode{% endblock %}
+{% block main %}
+<h1 class="h3">Ingressi di oggi</h1>
+{% if outcome %}
+  {% if outcome.esito == "OK" %}
+    <div class="alert alert-success" role="status"><strong>Valida.</strong> {{ ACTIVITIES[outcome.attivita].name }} ore {{ outcome.inizio[11:16] }} – {{ outcome.cognome }}. Ingresso registrato.</div>
+  {% elif outcome.esito == "GIA_REGISTRATA" %}
+    <div class="alert alert-warning" role="status">QR già utilizzato ({{ outcome.codice }}).</div>
+  {% elif outcome.esito == "FUORI_ORARIO" %}
+    <div class="alert alert-warning" role="status">Prenotazione valida ma per un altro orario: {{ outcome.inizio|long_date }} ore {{ outcome.inizio[11:16] }}.</div>
+  {% else %}
+    <div class="alert alert-danger" role="alert">{{ outcome.messaggio }}</div>
+  {% endif %}
+{% endif %}
+<form method="post" action="/custode" class="d-flex gap-2 mb-4">
+  <label class="visually-hidden" for="codice">Codice prenotazione</label>
+  <input class="form-control" id="codice" name="codice" placeholder="GDC-XXXX-XXXX" required>
+  <button class="btn btn-primary" type="submit">Verifica</button>
+</form>
+<ul class="list-unstyled">
+{% for p in bookings %}{% set st = STATES[p.stato] %}
+  <li class="border-bottom py-2 d-flex justify-content-between">
+    <span><strong>{{ p.inizio[11:16] }}</strong> {{ ACTIVITIES[p.attivita].name if p.attivita in ACTIVITIES else p.note }}
+      {% if p.attivita in ACTIVITIES %}<br><span class="small text-muted">{{ ACTIVITIES[p.attivita].setup_note }}</span>{% endif %}</span>
+    <span class="badge bg-{{ st[1] }} align-self-center">{{ st[0] }}</span>
+  </li>
+{% else %}
+  <li>Nessuna prenotazione oggi.</li>
+{% endfor %}
+</ul>
+{% endblock %}

@@ -7,7 +7,7 @@
 COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help build up down restart logs ps test demo llm
+.PHONY: help build up down restart logs ps test demo llm admin
 
 help: ## Mostra i comandi disponibili
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  make %-10s %s\n", $$1, $$2}'
@@ -42,3 +42,6 @@ demo: .env ## Avvia anche l'istanza demo con dati fittizi su :8001
 
 llm: .env ## Avvia anche l'LLM locale con Ollama
 	$(COMPOSE) --profile llm up --build -d
+
+admin: ## Ricompila l'interfaccia di amministrazione (React + Vite, serve Node.js 20+)
+	cd admin && npm ci && npm run build

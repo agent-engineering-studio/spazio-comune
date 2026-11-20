@@ -32,7 +32,9 @@ description:
       - QR code firmato per il controllo accessi
       - Back-office con export CSV e feed iCal
       - Server MCP per l'integrazione con assistenti e agenti
-      - Configurazione del luogo tramite file .env, database PostgreSQL
+      - Pagina di amministrazione per logo, tariffe, orari, pagoPA e SPID/CIE
+      - Fasce orarie del regolamento comunale, festivi e chiusure straordinarie
+      - Installazione su macchina virtuale senza Docker
     screenshots:
       - docs/screenshot/01_home.png
       - docs/screenshot/05_ticket.png

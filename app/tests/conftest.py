@@ -8,25 +8,25 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
-RADICE = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(RADICE / "app"))
-sys.path.insert(0, str(RADICE / "inference"))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "app"))
+sys.path.insert(0, str(ROOT / "inference"))
 
-from prenota.adapters.agenda import NoopAgenda  # noqa: E402
-from prenota.adapters.identity import Cittadino  # noqa: E402
-from prenota.adapters.payments import MockPagoPA  # noqa: E402
-from prenota.ai import AssistenteIA  # noqa: E402
-from prenota.booking import TZ, ServizioPrenotazioni  # noqa: E402
-from prenota.config import Settings  # noqa: E402
-from prenota.db import Database  # noqa: E402
-from prenota.main import create_app  # noqa: E402
+from venue_booking.adapters.agenda import NoopAgenda  # noqa: E402
+from venue_booking.adapters.identity import Citizen  # noqa: E402
+from venue_booking.adapters.payments import MockPagoPA  # noqa: E402
+from venue_booking.ai import AIAssistant  # noqa: E402
+from venue_booking.booking import TZ, BookingService  # noqa: E402
+from venue_booking.config import Settings  # noqa: E402
+from venue_booking.db import Database  # noqa: E402
+from venue_booking.main import create_app  # noqa: E402
 
 
 # PostgreSQL per i test: in Docker è il servizio "db"; in locale va indicato.
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 
 
-def nuovo_schema() -> str:
+def new_schema() -> str:
     return f"test_{uuid.uuid4().hex[:12]}"
 
 
@@ -36,47 +36,47 @@ def pytest_configure(config):
                                 "oppure eseguire: docker compose --profile test run --rm test")
 
 
-class Orologio:
+class Clock:
     """Orologio controllabile: lunedì 9 novembre 2026, ore 10:00."""
 
     def __init__(self):
-        self.ora = datetime(2026, 11, 9, 10, 0, tzinfo=TZ)
+        self.now = datetime(2026, 11, 9, 10, 0, tzinfo=TZ)
 
     def __call__(self):
-        return self.ora
+        return self.now
 
-    def avanza(self, **kw):
+    def advance(self, **kw):
         from datetime import timedelta
-        self.ora += timedelta(**kw)
+        self.now += timedelta(**kw)
 
 
 @pytest.fixture
-def orologio():
-    return Orologio()
+def clock():
+    return Clock()
 
 
 @pytest.fixture
 def db():
     """Schema PostgreSQL usa-e-getta: ogni test parte da tabelle vuote."""
-    d = Database(TEST_DATABASE_URL, nuovo_schema())
+    d = Database(TEST_DATABASE_URL, new_schema())
     yield d
-    d.elimina_schema()
-    d.chiudi()
+    d.drop_schema()
+    d.close()
 
 
 @pytest.fixture
-def servizio(orologio, db):
-    return ServizioPrenotazioni(db, MockPagoPA("http://test"), NoopAgenda(), "segreto-test", adesso=orologio)
+def service(clock, db):
+    return BookingService(db, MockPagoPA("http://test"), NoopAgenda(), "segreto-test", now=clock)
 
 
 @pytest.fixture
 def mario():
-    return Cittadino(cf="RSSMRA80A01E038X", nome="Mario", cognome="Rossi", email="m@example.org")
+    return Citizen(tax_code="RSSMRA80A01E038X", name="Mario", last_name="Rossi", email="m@example.org")
 
 
 @pytest.fixture
 def anna():
-    return Cittadino(cf="BNCNNA90B41E038Y", nome="Anna", cognome="Bianchi")
+    return Citizen(tax_code="BNCNNA90B41E038Y", name="Anna", last_name="Bianchi")
 
 
 @pytest.fixture
@@ -87,10 +87,10 @@ def inference_client():
 
 @pytest.fixture
 def settings():
-    s = Settings(base_url="http://testserver", database_url=TEST_DATABASE_URL, database_schema=nuovo_schema(),
+    s = Settings(base_url="http://testserver", database_url=TEST_DATABASE_URL, database_schema=new_schema(),
                  secret_key="k" * 32,
-                 inference_url="http://inference", ufficio_user="u", ufficio_password="p",
-                 custode_password="c", feed_token="feed")
+                 inference_url="http://inference", office_user="u", office_password="p",
+                 keeper_password="c", feed_token="feed", admin_user="admin", admin_password="admin-pw")
     yield s
     # qualunque app creata con queste impostazioni ha usato questo schema: lo si elimina
     with psycopg.connect(TEST_DATABASE_URL, autocommit=True) as conn:
@@ -98,8 +98,8 @@ def settings():
 
 
 @pytest.fixture
-def app_client(settings, orologio, inference_client):
-    ia = AssistenteIA("http://testserver", client=inference_client)
-    app = create_app(settings, adesso=orologio, assistente=ia)
+def app_client(settings, clock, inference_client):
+    ai = AIAssistant("http://testserver", client=inference_client)
+    app = create_app(settings, now=clock, assistant=ai)
     yield TestClient(app)
-    app.state.db.chiudi()
+    app.state.db.close()

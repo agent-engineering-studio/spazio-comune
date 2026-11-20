@@ -1,0 +1,24 @@
+[Unit]
+Description=Spazio Comune - server di inferenza (assistente IA, solo locale)
+After=network.target
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+Group=@SERVICE_USER@
+EnvironmentFile=@CONF@
+Environment=PYTHONUNBUFFERED=1 TZ=Europe/Rome
+WorkingDirectory=@DIR@/inference
+ExecStart=@DIR@/venv/bin/uvicorn server:app --host 127.0.0.1 --port 8080
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

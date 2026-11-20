@@ -1,0 +1,6 @@
+.admin-nav a { text-decoration: none; }
+.admin-nav a[aria-current="page"] { font-weight: 700; background: var(--bs-light, #f2f7fc); }
+.time-slots input { min-width: 12rem; }
+.weekday-col { width: 9rem; }
+details > summary { cursor: pointer; }
+.save-bar { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #dfe5eb; padding: .75rem 0; z-index: 2; }

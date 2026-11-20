@@ -1,0 +1,22 @@
+[Unit]
+Description=Spazio Comune - server MCP (solo 127.0.0.1)
+After=spazio-comune-app.service
+Wants=spazio-comune-app.service
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+Group=@SERVICE_USER@
+EnvironmentFile=@CONF@
+Environment=PYTHONUNBUFFERED=1 TZ=Europe/Rome MCP_TRANSPORT=http MCP_HOST=127.0.0.1 SPAZIO_COMUNE_URL=http://127.0.0.1:@PORT@
+WorkingDirectory=@DIR@/mcp_server
+ExecStart=@DIR@/venv/bin/python server.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

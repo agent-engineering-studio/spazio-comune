@@ -4,9 +4,13 @@
 partendo da una frase.** Open source (EUPL-1.2), riusabile da qualsiasi Comune.
 Pilota proposto: campo coperto di via Benagiano, Comune di Gioia del Colle.
 
-**Un'installazione = un luogo.** Nome, indirizzo, Comune, orari e attività si scrivono nel file `.env`.
-Un Comune con più luoghi installa una copia del repository per ciascuno: ogni luogo ha il suo indirizzo web,
-il suo database e il suo ufficio di riferimento, e resta semplice da gestire.
+**Un'installazione = un luogo.** Nome, logo, orari, tariffe (anche per fascia oraria) e pagoPA si impostano da una
+pagina di **amministrazione** (`/amministrazione`), senza toccare file né riavviare. Il collegamento SPID/CIE si
+configura nel file `.env`. Un Comune con più luoghi installa una
+copia per ciascuno: ogni luogo ha il suo indirizzo web, il suo database e il suo ufficio di riferimento.
+
+Si installa **con Docker** oppure **direttamente su una macchina virtuale Linux** con un solo comando:
+vedi [Installare su una macchina virtuale](#installare-su-una-macchina-virtuale).
 
 📖 **Documentazione completa:** https://agentengineering.it/spazio-comune/
 
@@ -15,8 +19,9 @@ il suo database e il suo ufficio di riferimento, e resta semplice da gestire.
 > Proposta indipendente, non un servizio ufficiale del Comune. SPID/CIE e pagoPA sono simulati; i dati della demo
 > sono fittizi.
 
-Il README è diviso in tre parti: **[Cittadini](#1-per-i-cittadini)** ·
-**[Comune](#2-per-il-comune)** · **[Sviluppatori e ufficio IT](#3-per-sviluppatori-e-ufficio-it)**.
+Il README è diviso in quattro parti: **[Cittadini](#1-per-i-cittadini)** ·
+**[Comune](#2-per-il-comune)** · **[Installare su una macchina virtuale](#installare-su-una-macchina-virtuale)** ·
+**[Sviluppatori e ufficio IT](#3-per-sviluppatori-e-ufficio-it)**.
 
 ---
 
@@ -47,16 +52,111 @@ se non sa una risposta lo dice. Non prenota e non paga al posto tuo, e non ricev
 |---|---|
 | **Più entrate** | Ogni ora libera è visibile e vendibile fino all'ultimo; meno rinunce davanti al pagamento anticipato. Stima illustrativa per il solo campo: **14.000–28.000 € l'anno** con occupazione tra il 25 e il 50 %. |
 | **Incassi riconciliati** | Ogni prenotazione ha il suo IUV pagoPA (MyPay Regione Puglia): niente controllo a vista dei PDF, niente rimborsi per orari già presi. |
+| **Impostazioni senza tecnici** | Dalla pagina di amministrazione: logo e nome nell'intestazione, tariffe e **fasce tariffarie** (es. serale con illuminazione), fasce orarie per ogni giorno secondo il regolamento comunale, orari estivi, festivi, chiusure straordinarie, credenziali pagoPA, password del personale. Valgono subito; ogni modifica resta registrata. |
 | **L'ufficio non cambia mestiere** | Stesse decisioni su aperture e riserve; una pagina con i prossimi 14 giorni, riserve per scuole e società, pagamenti allo sportello, CSV per la ragioneria, calendario iCal. |
 | **Custode digitale** | Verifica QR o codice dal telefono; sa già se montare porte o rete. |
 | **IA sotto controllo** | Uso informativo a basso rischio, trasparenza (AI Act art. 50), decisione umana (L. 132/2025), motore offline senza dati a terzi. |
-| **Riuso** | Un luogo nuovo = una copia del repository e un `.env` (nome, indirizzo, orari, attività); codice EUPL-1.2 con `publiccode.yml`. |
+| **Riuso** | Un luogo nuovo = una copia installata e configurata dalla pagina di amministrazione; codice EUPL-1.2 con `publiccode.yml`. |
 
 Piano proposto: dimostrazione → attivazioni tecniche (MyPay SIL, SPID/CIE, cloud qualificato) → **pilota di 8 settimane** →
 valutazione ed estensione.
 
 → [Benefici per il Comune](https://agentengineering.it/spazio-comune/comune/) ·
 [Analisi e proposta](docs/ANALISI.md) · [Conformità normativa](docs/conformita.md)
+
+---
+
+## Installare su una macchina virtuale
+
+Per mettere il servizio in esercizio su un server del Comune (o di un fornitore cloud qualificato) **non serve
+Docker**: uno script installa tutto, crea le password e avvia il servizio. Lo si può rilanciare per aggiornare.
+
+### Requisiti minimi del server Linux
+
+| Cosa | Minimo | Consigliato |
+|---|---|---|
+| Sistema operativo | Debian 12 o 13, Ubuntu 22.04 o 24.04 LTS (provati); RHEL, Rocky o Alma Linux 9 | Debian 12 o Ubuntu 24.04 LTS |
+| Processore | 1 vCPU | 2 vCPU |
+| Memoria (RAM) | 2 GB | 4 GB (8 GB o più solo se si attiva un'IA generativa locale) |
+| Disco | 10 GB | 20 GB, per tenere più backup |
+| Rete in uscita | durante l'installazione e gli aggiornamenti: pacchetti del sistema e PyPI | — |
+| Rete in entrata | porta 8000 (prova) | porte 80 e 443, con un nome a dominio (es. `prenota.comune.esempio.it`) |
+| Accesso | un utente con `sudo` | — |
+
+Non servono Node.js né Docker. Il database PostgreSQL viene installato sulla stessa macchina; volendo si può usare
+un PostgreSQL gestito (impostando `DATABASE_URL`).
+
+### Installazione in 3 passi
+
+```bash
+# 1. scaricare il programma
+sudo apt install -y git          # su RHEL/Rocky/Alma: sudo dnf install -y git
+git clone https://github.com/agent-engineering-studio/spazio-comune.git
+cd spazio-comune
+
+# 2. installare (scegliere UNA delle tre righe)
+sudo ./deploy/install.sh                                                  # prova: http://<indirizzo-del-server>:8000
+sudo ./deploy/install.sh --dominio prenota.comune.esempio.it              # con nome a dominio (http)
+sudo ./deploy/install.sh --dominio prenota.comune.esempio.it --email-tls ced@comune.esempio.it   # con HTTPS gratuito
+
+# 3. aprire l'indirizzo mostrato alla fine, sezione /amministrazione
+```
+
+Alla fine lo script stampa l'indirizzo del servizio e le **credenziali iniziali** (amministratore, ufficio,
+custode). Per HTTPS il nome a dominio deve già puntare all'indirizzo del server.
+
+### Dopo l'installazione: la pagina di amministrazione
+
+Si entra su `https://<dominio>/amministrazione` con le credenziali dell'amministratore e si compila, in ordine:
+
+1. **Luogo, Comune e logo**: nome del Comune e del luogo e logo, che compaiono nell'intestazione del sito.
+2. **Attività e tariffe**: cosa si può prenotare e quanto costa, con la delibera che approva le tariffe, e le
+   **fasce tariffarie** del regolamento (es. dalle 19 alle 24 la tariffa serale con illuminazione, anche solo in
+   alcuni giorni). Il cittadino paga l'importo della fascia in cui inizia lo slot.
+3. **Orari e disponibilità**: le fasce orarie di ogni giorno secondo il regolamento comunale (es. `9-13, 15-22`),
+   gli orari estivi, i festivi e le chiusure straordinarie.
+4. **Pagamenti pagoPA**: le credenziali fornite dall'intermediario. Finché restano "simulati" il sito lo dichiara ai cittadini.
+5. **Accessi del personale**: cambiare subito le password iniziali.
+
+Ogni modifica vale subito ed è registrata in **Registro delle modifiche** (chi, quando, cosa; mai le password).
+
+### Collegare SPID e CIE
+
+L'accesso dei cittadini con SPID/CIE si configura **nel file di configurazione** (`/etc/spazio-comune/spazio-comune.env`),
+non dalla pagina di amministrazione:
+
+1. comunicare al gestore del gateway SPID/CIE del Comune l'indirizzo di ritorno, per esempio
+   `https://prenota.comune.esempio.it/auth/oidc/callback`;
+2. scrivere nel file le variabili ricevute:
+
+   ```ini
+   IDENTITY_BACKEND=oidc
+   OIDC_ISSUER=https://login.comune.esempio.it
+   OIDC_CLIENT_ID=spazio-comune
+   OIDC_CLIENT_SECRET=<fornito dal gestore>
+   OIDC_REDIRECT_URI=https://prenota.comune.esempio.it/auth/oidc/callback
+   ```
+
+3. riavviare: `sudo systemctl restart spazio-comune-app`; in `/amministrazione` → *Accesso SPID/CIE* premere *Verifica il gateway*.
+
+Se manca qualcosa il servizio non parte e `journalctl -u spazio-comune-app` dice quale variabile correggere.
+
+### Gestione quotidiana
+
+| Per… | Comando |
+|---|---|
+| aggiornare alla nuova versione | `cd spazio-comune && git pull && sudo ./deploy/install.sh` (dati e configurazione restano) |
+| vedere se il servizio è attivo | `systemctl status spazio-comune-app` |
+| leggere i messaggi di errore | `journalctl -u spazio-comune-app -n 100` |
+| riavviare | `sudo systemctl restart spazio-comune-app` |
+| backup | automatico ogni notte alle 02:30 in `/var/backups/spazio-comune` (ultimi 14 giorni); copiarli anche fuori dal server |
+| ripristinare un backup | `sudo -u postgres pg_restore --clean -d spazio_comune /var/backups/spazio-comune/<file>.dump` |
+
+La configurazione tecnica (database, chiavi, indirizzo) è in `/etc/spazio-comune/spazio-comune.env`, leggibile solo
+da root. **Non cambiare `SECRET_KEY`**: firma i QR già emessi e protegge le credenziali salvate.
+
+→ Dettagli: [Installazione](https://agentengineering.it/spazio-comune/installazione/) ·
+[Amministrazione](https://agentengineering.it/spazio-comune/amministrazione/)
 
 ---
 
@@ -68,13 +168,14 @@ valutazione ed estensione.
 cp .env.example .env                              # valori di sviluppo; per la produzione vedi i commenti
 docker compose up --build -d                      # app :8000 + IA + server MCP :8090
 docker compose --profile demo up --build -d       # + istanza con dati fittizi su http://localhost:8001
-docker compose --profile test run --rm test       # 97 test
+docker compose --profile test run --rm test       # 149 test
 docker compose --profile llm up --build -d        # + LLM locale con Ollama (opzionale)
 ```
 
 | Pagina | Indirizzo | Accesso |
 |---|---|---|
-| Cittadino | `/` | SPID/CIE simulato |
+| Cittadino | `/` | SPID/CIE (simulato finché non si configura il gateway) |
+| Amministrazione | `/amministrazione` | `ADMIN_USER` / `ADMIN_PASSWORD` (React + Vite, servita dall'app) |
 | Ufficio | `/ufficio` | Basic auth `UFFICIO_USER` / `UFFICIO_PASSWORD` |
 | Custode | `/custode` | utente `custode` / `CUSTODE_PASSWORD` |
 | API (OpenAPI) | `/api/docs` | libero; `/api/v1/ufficio/*` con le credenziali dell'ufficio ([riferimento](#riferimento-api-rest)) |
@@ -153,9 +254,14 @@ docker exec -it spazio-comune-db psql -U spazio -d spazio_comune -c \
 
 Un solo modello, **`.env.example`**: i valori funzionano subito in locale, e sopra ogni variabile un commento
 `PRODUZIONE:` dice cosa mettere quando il Comune mette in esercizio il servizio
-(`cp .env.example .env && chmod 600 .env`). In sintesi:
+(`cp .env.example .env && chmod 600 .env`).
 
-**Il luogo e il Comune**
+> **Il `.env` contiene solo i valori iniziali.** Luogo, logo, attività e tariffe (anche per fascia oraria), orari,
+> pagoPA e password del personale si cambiano poi da `/amministrazione`: una sezione salvata lì prevale sul `.env` e
+> vale subito, anche con più processi o più server (si ricaricano entro 3 secondi). Restano solo nel `.env`
+> database, `SECRET_KEY`, `BASE_URL`, porte, **SPID/CIE (`IDENTITY_BACKEND`, `OIDC_*`)**, IA e MCP.
+
+**Il luogo e il Comune** (valori iniziali)
 
 | Variabile | Sviluppo (predefinito) | Produzione | A cosa serve |
 |---|---|---|---|
@@ -184,7 +290,9 @@ SPAZIO_FESTIVI=chiuso                            # festività nazionali calcolat
 SPAZIO_FESTIVI_EXTRA=26/05                       # festa patronale o altre chiusure ricorrenti
 ```
 
-Chiusure occasionali (manutenzione, tornei) restano in `/ufficio` con *Riserva uno slot*.
+Dalla pagina di amministrazione si fa di più: fasce diverse per ogni giorno della settimana, anche al minuto
+(`08:30-12:30`), orari settimanali diversi per periodo dell'anno, **chiusure straordinarie** tra due date con motivo
+mostrato nel calendario. Per chiudere solo alcune ore resta *Riserva uno slot* in `/ufficio`.
 
 **Applicazione e sicurezza**
 
@@ -192,13 +300,19 @@ Chiusure occasionali (manutenzione, tornei) restano in `/ufficio` con *Riserva u
 |---|---|---|---|
 | `BASE_URL` | `http://localhost:8000` | `https://prenota.comune.<nome>.it` | URL pubblico senza `/` finale: QR, iCal, ritorno da pagoPA |
 | `APP_PORT` / `MCP_PORT` / `DEMO_PORT` | `8000` / `8090` / `8001` | porte del reverse proxy | Porte sulla macchina che ospita Docker: da cambiare se già occupate (con `APP_PORT` aggiornare `BASE_URL`) |
-| `SECRET_KEY` | casuale a ogni avvio | `openssl rand -hex 32`, **fisso** | Firma sessioni e QR; se cambia, i QR emessi non valgono più |
+| `SECRET_KEY` | casuale a ogni avvio | `openssl rand -hex 32`, **fisso** | Firma sessioni e QR e cifra i segreti salvati dall'amministrazione; se cambia, i QR emessi non valgono più e le credenziali pagoPA/SPID vanno reinserite |
+| `ADMIN_USER` / `ADMIN_PASSWORD` | `amministratore` / `cambiami-admin` | utente nominativo / `openssl rand -base64 24` | Pagina di amministrazione `/amministrazione`; senza password resta chiusa. Si cambiano poi dalla pagina stessa |
 | `UFFICIO_USER` / `UFFICIO_PASSWORD` | `ufficio.sport` / `cambiami` | utente nominativo / `openssl rand -base64 24` | Back-office e API `/api/v1/ufficio/*` |
 | `CUSTODE_PASSWORD` | `custode` | `openssl rand -base64 18` | Pagina `/custode` (utente `custode`) |
 | `FEED_TOKEN` | casuale a ogni avvio | `openssl rand -hex 24`, **fisso** | Token del calendario iCal dell'ufficio |
 | `TTL_ATTESA_MIN` | `15` | `15` | Minuti di riserva dello slot durante il pagamento |
 | `COOKIE_SECURE` | `false` | **`true`** | Cookie solo su HTTPS |
-| `PAYMENT_BACKEND` / `IDENTITY_BACKEND` | `mock` | `mock` fino all'integrazione di MyPay SIL e SPID/CIE | Simulazioni pagoPA e SPID/CIE |
+| `PAYMENT_BACKEND` | `mock` | `mock`, poi si configura da `/amministrazione` | Simulazione pagoPA iniziale |
+| `IDENTITY_BACKEND` | `mock` | **`oidc`** | `mock` = utente di prova; `oidc` = gateway SPID/CIE |
+| `OIDC_ISSUER` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | vuoti | dal gestore del gateway | Gateway SPID/CIE OpenID Connect (obbligatori con `oidc`) |
+| `OIDC_REDIRECT_URI` | vuoto = `BASE_URL/auth/oidc/callback` | `https://prenota.comune.<nome>.it/auth/oidc/callback` | Indirizzo di ritorno, da registrare presso il gateway |
+| `OIDC_SCOPE` / `OIDC_ACR_VALUES` / `OIDC_AUTH_METHOD` | `openid profile email` / vuoto / `client_secret_basic` | come richiesto dal gateway | Attributi, livello SPID, autenticazione del client |
+| `OIDC_CLAIM_TAX_CODE` / `_NAME` / `_FAMILY_NAME` / `_EMAIL` | nomi SPID standard | solo se il gateway usa nomi diversi | Attributi letti dal token |
 
 **Database**
 
@@ -303,6 +417,21 @@ curl -u ufficio.sport:cambiami "http://localhost:8001/api/v1/ufficio/occupazione
 ```
 </details>
 
+#### API di amministrazione (sessione dell'amministratore + header `X-CSRF-Token`)
+
+Usate dall'interfaccia `/amministrazione`. Si entra con `POST /api/v1/amministrazione/accesso`
+(`{"utente", "password"}` → `{"utente", "csrf"}`); dopo 10 tentativi sbagliati l'indirizzo IP aspetta 15 minuti e la
+sessione scade dopo 30 minuti di inattività. I segreti non tornano mai indietro: si sa solo se sono impostati.
+
+| Metodo e percorso | Cosa fa |
+|---|---|
+| `GET /api/v1/amministrazione/impostazioni` | Tutte le sezioni, l'orario in vigore e le prenotazioni rimaste fuori dal nuovo orario |
+| `PUT /api/v1/amministrazione/impostazioni/{sezione}` | Valida e salva `luogo`, `attivita` (con `fasce_tariffarie`), `orari`, `pagamenti` o `accessi`; errore 422 con `{"errore"}`. `identita` è in sola lettura (409): si configura nel `.env` |
+| `POST /api/v1/amministrazione/impostazioni/{sezione}/ripristina` | Torna ai valori del `.env` |
+| `PUT` / `DELETE /api/v1/amministrazione/logo` | Logo dell'ente nell'intestazione (PNG, JPEG o WebP, massimo 512 KB) |
+| `POST /api/v1/amministrazione/identita/verifica` | Legge la configurazione OpenID del gateway SPID/CIE |
+| `GET /api/v1/amministrazione/registro` | Chi ha cambiato cosa e quando |
+
 #### Pagine web (per persone, non per integrazioni)
 
 | Percorso | Chi | Cosa |
@@ -314,6 +443,8 @@ curl -u ufficio.sport:cambiami "http://localhost:8001/api/v1/ufficio/occupazione
 | `GET /mie-prenotazioni` · `/privacy` · `/auth/login` · `/auth/logout` | cittadino | area personale e accesso |
 | `GET /ufficio` · `POST /ufficio/blocca` · `POST /ufficio/{codice}/conferma` · `POST /ufficio/{codice}/annulla` | ufficio | back-office, griglia di occupazione, riserve, pagamenti allo sportello |
 | `GET /custode` · `POST /custode` | custode | verifica QR o numero di prenotazione |
+| `GET /amministrazione` | amministratore | impostazioni: luogo e logo, tariffe, orari, pagoPA, SPID/CIE, accessi, registro |
+| `GET /auth/oidc/avvia` · `/auth/oidc/callback` | cittadino | accesso SPID/CIE tramite il gateway OpenID Connect |
 
 #### Server di inferenza (solo rete interna Docker, `http://inference:8080`)
 
@@ -437,7 +568,7 @@ chiedere né inviare codice fiscale, telefono o email. Pagina dedicata:
 ```bash
 docker compose --profile test run --rm test                   # 84 test: dominio, web, slot, IA, MCP
 docker compose --profile demo up -d && docker compose restart demo
-python app/scripts/simula.py --url http://localhost:8001 --cittadini 30
+python app/scripts/simulate.py --url http://localhost:8001 --cittadini 30
 ```
 
 La simulazione lancia 30 cittadini virtuali in parallelo sul flusso reale (SPID simulato → slot → pagoPA
@@ -450,8 +581,8 @@ era già preso; ognuno dei 3 slot contesi ha un solo vincitore e nessuno slot è
 | Ambito | Riferimento | Da fare |
 |---|---|---|
 | Cloud | Regolamento ACN cloud PA | Hosting su servizio qualificato ACN |
-| Identità | CAD art. 64 | Gateway SPID/CIE al posto di `MockIdentity` |
-| Pagamenti | CAD art. 5, pagoPA | `MyPaySILGateway` con credenziali SIL di Regione Puglia |
+| Identità | CAD art. 64 | Gateway SPID/CIE OpenID Connect: `IDENTITY_BACKEND=oidc` e `OIDC_*` nel `.env` |
+| Pagamenti | CAD art. 5, pagoPA | Credenziali SIL di Regione Puglia da `/amministrazione/pagamenti`; completare l'adapter `MyPaySILGateway` |
 | Sicurezza | Misure minime ICT AgID | HTTPS, segreti, rate limiting, audit log, backup `pg_dump` cifrati |
 | Accessibilità | L. 4/2004, WCAG 2.1 AA | Test utenti, dichiarazione di accessibilità |
 | Privacy | GDPR | Registro trattamenti, nomina responsabile, informativa RPD |
@@ -460,7 +591,10 @@ era già preso; ognuno dei 3 slot contesi ha un solo vincitore e nessuno slot è
 
 → [Installazione conforme per la PA](https://agentengineering.it/spazio-comune/normativa-it/)
 
-### Senza Docker
+### Sviluppo senza Docker
+
+Per la messa in esercizio su un server usare `deploy/install.sh` ([sopra](#installare-su-una-macchina-virtuale)).
+In sviluppo:
 
 ```bash
 python3.12 -m venv .venv && . .venv/bin/activate
@@ -468,16 +602,26 @@ pip install -r app/requirements.txt -r inference/requirements.txt -r mcp_server/
 export DATABASE_URL=postgresql://spazio:<password>@localhost:5432/spazio_comune   # un PostgreSQL 17 raggiungibile
 TEST_DATABASE_URL=$DATABASE_URL pytest       # ogni test crea e poi elimina il suo schema
 (cd inference && uvicorn server:app --port 8080) &
-(cd app && INFERENCE_URL=http://127.0.0.1:8080 uvicorn --factory prenota.main:create_app --port 8000)
+(cd app && INFERENCE_URL=http://127.0.0.1:8080 uvicorn --factory venue_booking.main:create_app --port 8000)
+```
+
+### Interfaccia di amministrazione (React + Vite)
+
+Il codice è in `admin/`; la build compilata è già nel repository (`app/venue_booking/static/admin/`) e la serve
+l'app FastAPI, quindi in esercizio non c'è un servizio Node.js. Dopo una modifica:
+
+```bash
+cd admin && npm ci && npm run build      # ricompila in app/venue_booking/static/admin/
+npm run dev                              # http://localhost:5173/amministrazione con API dall'app su :8000
 ```
 
 ### Demo, video e documentazione
 
 ```bash
 pip install playwright zensical && playwright install chromium
-python app/scripts/registra_demo.py                # video 16:9 (MP4 + GIF) contro :8001
-python app/scripts/registra_demo.py --verticale    # video 9:16
-python app/scripts/registra_demo.py --screenshot   # screenshot per la documentazione
+python app/scripts/record_demo.py                # video 16:9 (MP4 + GIF) contro :8001
+python app/scripts/record_demo.py --verticale    # video 9:16
+python app/scripts/record_demo.py --screenshot   # screenshot per la documentazione
 zensical serve -a 127.0.0.1:8002                   # anteprima del sito
 ```
 

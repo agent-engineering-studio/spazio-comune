@@ -124,7 +124,7 @@ spazio-comune/
 ├── app/
 │   ├── Dockerfile
 │   ├── scripts/fetch_bootstrap_italia.py   scarica BI 2.18.3 da npm con verifica sha512
-│   ├── prenota/
+│   ├── venue_booking/
 │   │   ├── main.py           FastAPI: rotte cittadino, ufficio, custode, API
 │   │   ├── booking.py        dominio: slot, prenotazioni, pagamenti, check-in
 │   │   ├── catalog.py        impianti, attività, tariffe D.G.C. 37/2025

@@ -1,0 +1,8 @@
+[Unit]
+Description=Spazio Comune - backup giornaliero del database (pg_dump)
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/bin/sh -c 'f=@BACKUP@/spazio_comune-$(date +%%Y%%m%%d-%%H%%M).dump && pg_dump -Fc -d spazio_comune -f "$f" && chmod 600 "$f" && find @BACKUP@ -name "spazio_comune-*.dump" -mtime +@KEEP_DAYS@ -delete'
