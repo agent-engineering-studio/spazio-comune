@@ -10,13 +10,13 @@
 
 <div class="row">
   <div class="col-lg-8">
-    <h1 class="titolo-pagina">Prenota: {{ VENUE.name }}</h1>
+    <h1 class="page-title">Prenota: {{ VENUE.name }}</h1>
     <p class="mb-1"><svg class="icon icon-sm" aria-hidden="true"><use href="{{ ICO }}#it-map-marker"></use></svg> {{ VENUE.address }}</p>
     <p class="lead">Scegli sport e orario, paga con pagoPA e al campo mostra il QR code. Nessuna ricevuta da caricare o stampare.</p>
   </div>
 </div>
 
-<ol class="percorso list-unstyled d-none d-md-flex flex-wrap gap-2 my-3" aria-label="Come funziona">
+<ol class="path-steps list-unstyled d-none d-md-flex flex-wrap gap-2 my-3" aria-label="Come funziona">
   <li class="chip chip-simple chip-primary"><span class="chip-label">1 · Scegli l'orario</span></li>
   <li class="chip chip-simple"><span class="chip-label">2 · Accedi con SPID o CIE</span></li>
   <li class="chip chip-simple"><span class="chip-label">3 · Paga con pagoPA</span></li>
@@ -24,16 +24,16 @@
 </ol>
 
 {% if ai_enabled %}
-<section class="card-wrapper card-space mb-4" aria-labelledby="titolo-assistente">
-  <div class="card card-bg no-after assistente">
+<section class="card-wrapper card-space mb-4" aria-labelledby="assistant-title">
+  <div class="card card-bg no-after assistant">
     <div class="card-body">
-      <h2 id="titolo-assistente" class="h4 card-title">Dimmi cosa vuoi fare</h2>
-      <form method="post" action="/assistente" class="row g-2 align-items-end mt-3">
+      <h2 id="assistant-title" class="h4 card-title">Dimmi cosa vuoi fare</h2>
+      <form method="post" action="/assistant" class="row g-2 align-items-end mt-3">
         <input type="hidden" name="csrf_token" value="{{ csrf }}">
         <div class="col-md-9">
           <div class="form-group mb-0">
-            <label for="testo" class="active">Scrivi come lo diresti a un operatore</label>
-            <input type="text" class="form-control" id="testo" name="testo" maxlength="500" required
+            <label for="text" class="active">Scrivi come lo diresti a un operatore</label>
+            <input type="text" class="form-control" id="text" name="text" maxlength="500" required
                    value="{{ request_text or '' }}" placeholder="es. calcetto venerdì sera alle 20" autocomplete="off">
           </div>
         </div>
@@ -51,7 +51,7 @@
             {% if intent.attivita %} per <em>{{ ACTIVITIES[intent.attivita].name }}</em>{% endif %}:</p>
           <ul class="list-unstyled d-flex flex-wrap gap-2">
           {% for s in proposals %}
-            <li><a class="btn btn-outline-primary" href="/prenota?inizio={{ s.inizio|urlencode }}&attivita={{ intent.attivita or 'calcetto' }}">
+            <li><a class="btn btn-outline-primary" href="/book?start={{ s.inizio|urlencode }}&activity={{ intent.attivita or 'calcetto' }}">
               {{ s.data|long_date|capitalize }}, ore {{ s.ora }}</a></li>
           {% endfor %}
           </ul>
@@ -67,11 +67,11 @@
 </section>
 {% endif %}
 
-<section aria-labelledby="titolo-attivita" class="mb-3">
-  <h2 id="titolo-attivita" class="h4">1. Scegli lo sport</h2>
+<section aria-labelledby="activity-title" class="mb-3">
+  <h2 id="activity-title" class="h4">1. Scegli lo sport</h2>
   <div class="d-flex flex-wrap gap-2" role="group" aria-label="Sport">
   {% for code in VENUE.activities %}{% set a = ACTIVITIES[code] %}
-    <a href="/?attivita={{ code }}&dal={{ from_date }}" class="btn {{ 'btn-primary' if code == selected_activity else 'btn-outline-primary' }}"
+    <a href="/?activity={{ code }}&from={{ from_date }}" class="btn {{ 'btn-primary' if code == selected_activity else 'btn-outline-primary' }}"
        {% if code == selected_activity %}aria-current="true"{% endif %}>
       {{ a.name }} <span class="badge bg-white text-primary ms-1">€ {{ a.fee_eur }}</span></a>
   {% endfor %}
@@ -82,23 +82,23 @@
   <p class="small text-muted mt-2 mb-0">Prezzo totale per il gruppo, slot da {{ VENUE.slot_minutes }} minuti ({{ FEES_SOURCE }}).</p>
 </section>
 
-<section aria-labelledby="titolo-cal">
+<section aria-labelledby="calendar-title">
   <div class="d-flex justify-content-between align-items-center flex-wrap">
-    <h2 id="titolo-cal" class="h4 mb-2">2. Scegli giorno e ora</h2>
+    <h2 id="calendar-title" class="h4 mb-2">2. Scegli giorno e ora</h2>
     <div class="mb-2">
-      {% if prev_week %}<a class="btn btn-outline-secondary btn-sm" href="/?attivita={{ selected_activity }}&dal={{ prev_week }}">‹ Settimana precedente</a>{% endif %}
-      {% if next_week %}<a class="btn btn-outline-secondary btn-sm" href="/?attivita={{ selected_activity }}&dal={{ next_week }}">Settimana successiva ›</a>{% endif %}
+      {% if prev_week %}<a class="btn btn-outline-secondary btn-sm" href="/?activity={{ selected_activity }}&from={{ prev_week }}">‹ Settimana precedente</a>{% endif %}
+      {% if next_week %}<a class="btn btn-outline-secondary btn-sm" href="/?activity={{ selected_activity }}&from={{ next_week }}">Settimana successiva ›</a>{% endif %}
     </div>
   </div>
-  <ul class="legenda list-unstyled d-flex flex-wrap gap-3 small mb-3" aria-label="Legenda">
-    {% for k in ("libero", "occupato", "in_pagamento", "riservato") %}
-    <li><span class="slot-campione {{ SLOT_STATES[k][1] }}" aria-hidden="true"></span> {{ SLOT_STATES[k][0] }}</li>
+  <ul class="legend list-unstyled d-flex flex-wrap gap-3 small mb-3" aria-label="Legenda">
+    {% for k in ("libero", "occupato", "in_pagamento", "riservato", "passato") %}
+    <li><span class="slot-swatch {{ SLOT_STATES[k][1] }}" aria-hidden="true"></span> {{ SLOT_STATES[k][0] }}</li>
     {% endfor %}
   </ul>
-  <div class="row g-3 settimana">
+  <div class="row g-3 week">
   {% for g in days %}
     <div class="col-12 col-sm-6 col-lg-3 col-xl">
-      <div class="card shadow-sm h-100 giorno {{ 'giorno-vuoto' if not g.slot }}">
+      <div class="card shadow-sm h-100 day-card {{ 'day-closed' if not g.slot }}">
         <div class="card-body p-3">
           <h3 class="h6 mb-1">{{ g.data|long_date|capitalize|replace(" " ~ from_date.year, "") }}</h3>
           {% if not g.slot %}
@@ -111,11 +111,12 @@
             {% for s in g.slot %}
               <li>
               {% if s.libero %}
-                <a class="btn btn-outline-primary btn-sm w-100 slot"
-                   href="/prenota?inizio={{ s.inizio|urlencode }}&attivita={{ selected_activity }}"
+                <a class="btn btn-sm w-100 slot slot-free" title="Libero: prenota"
+                   href="/book?start={{ s.inizio|urlencode }}&activity={{ selected_activity }}"
                    aria-label="Prenota {{ g.data|long_date }} ore {{ s.ora }}, {{ ACTIVITIES[selected_activity].name }}, {{ slot_fee(selected_activity, s.inizio)|euro }}">{{ s.ora }}</a>
               {% else %}
-                <span class="btn btn-sm w-100 slot {{ SLOT_STATES[s.stato][1] }} disabled" aria-disabled="true">{{ s.ora }} · {{ SLOT_STATES[s.stato][0]|lower }}</span>
+                <span class="btn btn-sm w-100 slot {{ SLOT_STATES[s.stato][1] }} disabled" aria-disabled="true"
+                      title="{{ SLOT_STATES[s.stato][0] }}">{{ s.ora }}<span class="visually-hidden">, {{ SLOT_STATES[s.stato][0]|lower }}</span></span>
               {% endif %}
               </li>
             {% endfor %}
@@ -128,14 +129,14 @@
   </div>
 </section>
 
-<section class="mt-5" aria-labelledby="titolo-faq">
-  <h2 id="titolo-faq" class="h4">Hai una domanda?</h2>
+<section class="mt-5" aria-labelledby="faq-title">
+  <h2 id="faq-title" class="h4">Hai una domanda?</h2>
   {% if ai_enabled %}
   <form method="post" action="/faq" class="row g-2 align-items-end mt-4 mb-3">
     <input type="hidden" name="csrf_token" value="{{ csrf }}">
     <div class="col-md-9"><div class="form-group mb-0">
-      <label for="domanda" class="active">Chiedi su tariffe, pagamento, annullamento…</label>
-      <input type="text" class="form-control" id="domanda" name="domanda" maxlength="500" required value="{{ question or '' }}" placeholder="es. posso annullare la prenotazione?">
+      <label for="question" class="active">Chiedi su tariffe, pagamento, annullamento…</label>
+      <input type="text" class="form-control" id="question" name="question" maxlength="500" required value="{{ question or '' }}" placeholder="es. posso annullare la prenotazione?">
     </div></div>
     <div class="col-md-3"><button class="btn btn-outline-primary w-100" type="submit">Chiedi</button></div>
   </form>

@@ -28,21 +28,21 @@ def csrf(html: str) -> str:
 
 def citizen(url: str, start: str, activity: str, results: list, barrier: threading.Barrier) -> None:
     with httpx.Client(base_url=url, timeout=30, follow_redirects=False) as c:
-        c.get("/auth/simulato?ritorno=/")
-        r = c.get("/prenota", params={"inizio": start, "attivita": activity})
+        c.get("/auth/mock?return_url=/")
+        r = c.get("/book", params={"start": start, "activity": activity})
         token = csrf(r.text)
         barrier.wait()  # tutti inviano insieme
-        r = c.post("/prenota", data={"inizio": start, "attivita": activity, "csrf_token": token})
+        r = c.post("/book", data={"start": start, "activity": activity, "csrf_token": token})
         if r.status_code != 303:
             results.append(("rifiutata", start, None, r.status_code))
             return
         page_html = r.headers["location"]
         r = c.get(page_html)
-        return_url = parse_qs(urlparse(page_html).query)["ritorno"][0]
-        c.post(urlparse(page_html).path, data={"ritorno": return_url, "csrf_token": csrf(r.text)})
+        return_url = parse_qs(urlparse(page_html).query)["return_url"][0]
+        c.post(urlparse(page_html).path, data={"return_url": return_url, "csrf_token": csrf(r.text)})
         r = c.get(urlparse(return_url).path)  # ritorno da pagoPA: l'app verifica il pagamento
         code = return_url.rstrip("/").rsplit("/", 1)[-1]
-        ok = r.status_code == 303 and r.headers["location"] == f"/prenotazione/{code}"
+        ok = r.status_code == 303 and r.headers["location"] == f"/booking/{code}"
         results.append(("confermata" if ok else "non_confermata", start, code, r.status_code))
 
 
@@ -57,8 +57,8 @@ def main() -> int:
     rng = random.Random(a.seed)
     office = (a.user, a.password)
 
-    info = httpx.get(f"{a.url}/api/v1/spazio").json()
-    free = [s["inizio"] for g in httpx.get(f"{a.url}/api/v1/disponibilita?giorni=7").json()
+    info = httpx.get(f"{a.url}/api/v1/venue").json()
+    free = [s["inizio"] for g in httpx.get(f"{a.url}/api/v1/availability?days=7").json()
               for s in g["slot"] if s["libero"]]
     if len(free) < 4:
         print("Troppi pochi slot liberi: riavviare l'istanza (docker compose restart demo)")
@@ -81,7 +81,7 @@ def main() -> int:
     print(f"Prenotazioni confermate: {len(confirmed)}   rifiutate (slot già preso): {len(rejected)}")
 
     # verifica sul database tramite l'API dell'ufficio
-    occ = httpx.get(f"{a.url}/api/v1/ufficio/occupazione?giorni=7", auth=office).json()
+    occ = httpx.get(f"{a.url}/api/v1/backoffice/occupancy?days=7", auth=office).json()
     on_slot = {s["inizio"]: s for g in occ for s in g["slot"]}
     errors = []
     for code, start in confirmed.items():

@@ -1,6 +1,6 @@
 ---
 title: Amministrazione
-description: La pagina di amministrazione di Spazio Comune: logo e intestazione, tariffe e fasce tariffarie, fasce orarie del regolamento comunale, pagoPA e accessi del personale; SPID/CIE nel file .env.
+description: "La pagina di amministrazione di Spazio Comune: logo e intestazione, tariffe e fasce tariffarie, fasce orarie del regolamento comunale, pagoPA e accessi del personale; SPID/CIE nel file .env."
 ---
 
 # Amministrazione
@@ -8,7 +8,7 @@ description: La pagina di amministrazione di Spazio Comune: logo e intestazione,
 La pagina **`/admin`** permette al Comune di impostare il servizio senza toccare file e senza riavviare
 nulla. Le modifiche valgono subito per cittadini, ufficio, custode, API e server MCP.
 
-![Orari e disponibilità](screenshot/11_amministrazione.png)
+![Orari e disponibilità](screenshot/11_admin.png)
 
 ## Chi entra
 
@@ -18,7 +18,7 @@ di installazione su VM le genera da solo. Senza `ADMIN_PASSWORD` la pagina resta
 - Dopo 10 tentativi sbagliati l'indirizzo IP aspetta 15 minuti.
 - La sessione scade dopo 30 minuti di inattività. Se cambiano utente o password dell'amministratore, le altre
   sessioni aperte decadono.
-- Ufficio e custode non vedono questa pagina: hanno `/ufficio` e `/custode`.
+- Ufficio e custode non vedono questa pagina: hanno `/backoffice` e `/checkin`.
 
 ## Le sezioni
 
@@ -108,7 +108,7 @@ Il codice fiscale SPID nel formato `TINIT-…` viene normalizzato.
 Con la simulazione il sito avvisa i cittadini che non c'è un addebito reale. Le credenziali di **MyPay SIL** si
 salvano già cifrate. Il collegamento effettivo richiede però di completare l'adapter `MyPaySILGateway` con il WSDL
 fornito da Regione Puglia: finché non è completato il pagamento online non parte, e l'ufficio può confermare i
-pagamenti allo sportello da `/ufficio`.
+pagamenti allo sportello da `/backoffice`.
 
 ## Sicurezza dei dati salvati
 

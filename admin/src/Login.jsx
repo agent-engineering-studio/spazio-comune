@@ -25,7 +25,7 @@ export default function Login({ onLoggedIn }) {
         <form onSubmit={submit}>
           <Field id="username" label="Utente" value={username} onChange={setUsername} autoComplete="username" required />
           <Field id="password" label="Password" type="password" value={password} onChange={setPassword}
-                 autoComplete="current-password" required help="Credenziali ADMIN_USER e ADMIN_PASSWORD del file .env, o quelle impostate in Accessi del personale." />
+                 autoComplete="current-password" required />
           <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? "Accesso…" : "Entra"}</button>
         </form>
       </div></div>

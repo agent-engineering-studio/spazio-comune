@@ -39,12 +39,12 @@ Scrivi quello che vuoi come lo diresti al telefono:
 L'assistente capisce sport, giorno e ora e ti mostra gli **orari liberi più vicini**. Se le 20 sono già prese,
 ti propone le 19 o le 21. Tocchi quello che preferisci.
 
-![L'assistente propone gli orari](screenshot/02_assistente.png){ loading=lazy }
+![L'assistente propone gli orari](screenshot/02_assistant.png){ loading=lazy }
 
 Preferisci guardare il calendario? Ogni orario dice subito com'è messo: **libero**, **occupato**,
 **in pagamento** (qualcuno sta pagando in questo momento) o **riservato** dall'ufficio.
 
-![Calendario con orari liberi e impegnati](screenshot/09_calendario.png){ loading=lazy }
+![Calendario con orari liberi e impegnati](screenshot/09_calendar.png){ loading=lazy }
 
 !!! info "L'assistente ti aiuta, ma decidi tu"
     È un sistema di **intelligenza artificiale**, e la pagina lo dice chiaramente. Propone orari e risponde alle
@@ -57,7 +57,7 @@ Preferisci guardare il calendario? Ogni orario dice subito com'è messo: **liber
 Un tocco e sei dentro: nome, cognome e codice fiscale si compilano da soli. Il telefono è facoltativo
 e serve solo per avvisarti di chiusure improvvise.
 
-![Riepilogo](screenshot/03_riepilogo.png){ loading=lazy }
+![Riepilogo](screenshot/03_summary.png){ loading=lazy }
 
 ### 3. Paga con pagoPA
 

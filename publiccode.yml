@@ -38,7 +38,7 @@ description:
     screenshots:
       - docs/screenshot/01_home.png
       - docs/screenshot/05_ticket.png
-      - docs/screenshot/07_ufficio.png
+      - docs/screenshot/07_backoffice.png
 legal:
   license: EUPL-1.2
   mainCopyrightOwner: Agent Engineering Studio

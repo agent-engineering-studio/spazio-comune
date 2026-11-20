@@ -94,7 +94,7 @@ export default function App() {
             <span className="navbar-brand text-white">{data?.meta.comune || "Spazio Comune"}</span>
             <div className="it-header-slim-right-zone">
               <span className="text-white small me-3">{user}</span>
-              <a className="btn btn-primary btn-sm me-2" href="/ufficio">Ufficio</a>
+              <a className="btn btn-primary btn-sm me-2" href="/backoffice">Backoffice</a>
               <button type="button" className="btn btn-primary btn-sm" onClick={logout}>Esci</button>
             </div>
           </div></div>

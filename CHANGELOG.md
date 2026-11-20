@@ -8,6 +8,9 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il v
 - Dipendenze aggiornate: FastAPI 0.162.0, Starlette 1.10.0, python-multipart 0.0.32, uvicorn 0.54.0, pydantic 2.14.1, mcp 1.30.0, sse-starlette 3.6.0. Le versioni precedenti avevano vulnerabilità note segnalate da `pip-audit`.
 
 ### Modificato
+- Tutti gli indirizzi in inglese: pagine (`/book`, `/booking/{code}`, `/my-bookings`, `/checkin`, `/backoffice`, `/admin`, `/payment/result/{code}`, `/pagopa-mock/{iuv}`, `/auth/mock`, `/auth/oidc/start`), API (`/api/v1/venue`, `/availability`, `/assistant`, `/faq`, `/backoffice/occupancy`, `/backoffice/bookings/{code}`), parametri e campi dei moduli (`from`, `days`, `activity`, `start`, `text`, `question`, `return_url`…) e tool MCP (`venue_info`, `availability`, `search_slots`, `ask`, `booking_link`, `slot_occupancy`, `booking_detail`). Nessun rimando dai vecchi indirizzi: il servizio non è ancora in esercizio.
+- Calendario a colori pieni: verde libero, rosso occupato, grigio passato, giallo in pagamento, grigio-blu riservato; lo stato resta leggibile dai lettori di schermo.
+- Screenshot (nomi in inglese) e video della demo rigenerati con la nuova interfaccia, galleria nel README.
 - Identificatori del codice in inglese in tutto il repository (pacchetto `app/venue_booking`); variabili del `.env`, URL e campi JSON delle API, tool MCP, opzioni da riga di comando e tabelle del database restano invariati.
 - `publiccode.yml` allineato allo standard: categorie ammesse, sezione `IT` maiuscola, `codiceIPA` vuoto per il software di terze parti, schermate e pubblico di riferimento.
 

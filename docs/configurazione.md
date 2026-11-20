@@ -47,7 +47,7 @@ openssl rand -hex 24          # FEED_TOKEN
 | `SPAZIO_INDIRIZZO` | Via Benagiano, 70023 Gioia del Colle (BA) | indirizzo completo | Pagine, ticket, campo *luogo* degli eventi iCal. |
 | `SPAZIO_ATTIVITA` | `calcetto,tennis_singolo,tennis_doppio` | attività ammesse dall'atto dell'ufficio | Sottoinsieme delle attività definite in `app/venue_booking/catalog.py`, dove si aggiungono attività nuove con la loro tariffa. Un valore sconosciuto blocca l'avvio con un messaggio chiaro. |
 | `SPAZIO_GIORNI` | `lun,mar,mer,gio,ven,sab` | calendario dell'ufficio | Giorni di apertura (`lun` … `dom`). |
-| `SPAZIO_ORARIO` | `15-22` | orario dell'ufficio | Apertura e chiusura in ore intere (chiusura fino a `24`): con slot da 60 minuti il primo è alle 15:00, l'ultimo alle 21:00. Più intervalli separati da virgola escludono le ore in mezzo per ogni attività: `9-13,14-22` toglie la pausa 13–14. Chiusure straordinarie: *Riserva uno slot* in `/ufficio`. |
+| `SPAZIO_ORARIO` | `15-22` | orario dell'ufficio | Apertura e chiusura in ore intere (chiusura fino a `24`): con slot da 60 minuti il primo è alle 15:00, l'ultimo alle 21:00. Più intervalli separati da virgola escludono le ore in mezzo per ogni attività: `9-13,14-22` toglie la pausa 13–14. Chiusure straordinarie: *Riserva uno slot* in `/backoffice`. |
 | `SPAZIO_ORARIO_PERIODI` | vuoto | periodi dell'atto dell'ufficio | Orari che sostituiscono `SPAZIO_ORARIO` in alcuni periodi, ogni anno: `GG/MM-GG/MM=orari`, più periodi separati da `;`. Esempio: `01/06-15/09=9-13,16-24;20/12-06/01=15-20`. |
 | `SPAZIO_FESTIVI` | `chiuso` | `chiuso`, `aperto` o un orario | Giorni festivi nazionali, calcolati in automatico ogni anno (Pasqua e Lunedì dell'Angelo compresi): `chiuso`, `aperto` (come un giorno normale) oppure un orario festivo, es. `16-20`. |
 | `SPAZIO_FESTIVI_EXTRA` | vuoto | santo patrono | Festività locali o chiusure ricorrenti: `GG/MM` (ogni anno) o `GG/MM/AAAA`, separate da virgola. |
@@ -101,10 +101,10 @@ dell'ufficio ma non compaiono più nella griglia: vanno gestite a mano.
 
 | Variabile | Sviluppo (predefinito) | Produzione | Descrizione |
 |---|---|---|---|
-| `UFFICIO_USER` | `ufficio.sport` | utente nominativo | Utente del back-office `/ufficio` e delle API `/api/v1/ufficio/*` (Basic auth). |
+| `UFFICIO_USER` | `ufficio.sport` | utente nominativo | Utente del back-office `/backoffice` e delle API `/api/v1/backoffice/*` (Basic auth). |
 | `UFFICIO_PASSWORD` | `cambiami` | `openssl rand -base64 24` | Password del back-office. |
-| `CUSTODE_PASSWORD` | `custode` | `openssl rand -base64 18` | Password della pagina `/custode`; l'utente è sempre `custode`. |
-| `FEED_TOKEN` | casuale a ogni avvio | `openssl rand -hex 24`, **fisso** | Token del calendario iCal (`/ufficio/agenda.ics?token=…`). Se cambia, il calendario sottoscritto smette di aggiornarsi. Chi lo conosce vede gli orari prenotati: va trattato come una password. |
+| `CUSTODE_PASSWORD` | `custode` | `openssl rand -base64 18` | Password della pagina `/checkin`; l'utente è sempre `custode`. |
+| `FEED_TOKEN` | casuale a ogni avvio | `openssl rand -hex 24`, **fisso** | Token del calendario iCal (`/backoffice/calendar.ics?token=…`). Se cambia, il calendario sottoscritto smette di aggiornarsi. Chi lo conosce vede gli orari prenotati: va trattato come una password. |
 
 ## Integrazioni
 
@@ -136,7 +136,7 @@ Lette dal container `spazio-comune-mcp`. Dettagli in [Server MCP](mcp.md).
 |---|---|---|---|
 | `MCP_ALLOWED_HOSTS` | `localhost:*,127.0.0.1:*` | + host del reverse proxy, se esposto | Header `Host` ammessi: protezione da DNS rebinding. La porta 8090 è pubblicata solo su `127.0.0.1`. |
 | `MCP_PORT` | `8090` | `8090` | Porta del server MCP sull'host, pubblicata solo su `127.0.0.1`. Da cambiare se è già occupata: l'indirizzo diventa `http://localhost:<porta>/mcp`. |
-| `MCP_UFFICIO_USER` / `MCP_UFFICIO_PASSWORD` | vuote | vuote, o un utente dedicato | Abilitano gli strumenti dell'ufficio con i numeri di prenotazione (`occupazione_slot`, `dettaglio_prenotazione`). Vuote = strumenti spenti. |
+| `MCP_UFFICIO_USER` / `MCP_UFFICIO_PASSWORD` | vuote | vuote, o un utente dedicato | Abilitano gli strumenti dell'ufficio con i numeri di prenotazione (`slot_occupancy`, `booking_detail`). Vuote = strumenti spenti. |
 
 ## Istanza demo
 

@@ -53,7 +53,7 @@ class MockPagoPA:
 
     def create_payment_due(self, due: PaymentDue, return_url: str) -> PaymentCreated:
         iuv = "RF" + secrets.token_hex(8).upper()
-        url = f"{self.base_url}/pagopa-simulato/{iuv}?ritorno={return_url}"
+        url = f"{self.base_url}/pagopa-mock/{iuv}?return_url={return_url}"
         return PaymentCreated(iuv=iuv, payment_url=url)
 
     def mark_paid(self, iuv: str) -> None:

@@ -34,7 +34,7 @@ description: Come funziona l'assistente IA di Spazio Comune, quali garanzie offr
 
 </div>
 
-![Assistente: proposte di orario](screenshot/02_assistente.png){ loading=lazy }
+![Assistente: proposte di orario](screenshot/02_assistant.png){ loading=lazy }
 
 ## Come è fatto
 

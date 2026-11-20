@@ -13,9 +13,9 @@
     <div class="alert alert-danger" role="alert">{{ outcome.messaggio }}</div>
   {% endif %}
 {% endif %}
-<form method="post" action="/custode" class="d-flex gap-2 mb-4">
-  <label class="visually-hidden" for="codice">Codice prenotazione</label>
-  <input class="form-control" id="codice" name="codice" placeholder="GDC-XXXX-XXXX" required>
+<form method="post" action="/checkin" class="d-flex gap-2 mb-4">
+  <label class="visually-hidden" for="code">Codice prenotazione</label>
+  <input class="form-control" id="code" name="code" placeholder="GDC-XXXX-XXXX" required>
   <button class="btn btn-primary" type="submit">Verifica</button>
 </form>
 <ul class="list-unstyled">

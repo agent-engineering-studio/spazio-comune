@@ -18,14 +18,14 @@
     <p class="small text-muted mb-1">Incassato via pagoPA</p><p class="h3 mb-0">{{ revenue|euro }}</p></div></div></div>
   <div class="col-sm-4"><div class="card shadow-sm"><div class="card-body">
     <p class="small text-muted mb-1">Esporta</p>
-    <a href="/ufficio/export.csv" class="btn btn-outline-primary btn-sm me-1 mb-1">CSV per ragioneria</a>
+    <a href="/backoffice/export.csv" class="btn btn-outline-primary btn-sm me-1 mb-1">CSV per ragioneria</a>
     <a href="{{ feed }}" class="btn btn-outline-primary btn-sm mb-1">Calendario (iCal)</a></div></div></div>
 </div>
 
-<h2 class="h4" id="occupazione">Occupazione degli slot</h2>
+<h2 class="h4" id="occupancy">Occupazione degli slot</h2>
 <p class="small text-muted">Per ogni orario, il numero di prenotazione registrato sullo slot (dati della tabella <code>slot</code>).</p>
 <div class="table-responsive mb-4">
-<table class="table table-sm table-bordered occupazione">
+<table class="table table-sm table-bordered occupancy">
   <caption class="visually-hidden">Occupazione dei prossimi 14 giorni con numero di prenotazione</caption>
   <thead><tr><th scope="col">Giorno</th>{% for o in hours %}<th scope="col">{{ o }}</th>{% endfor %}</tr></thead>
   <tbody>
@@ -33,8 +33,8 @@
     <tr>
       <th scope="row">{{ g.data|long_date|replace(" " ~ from_date.year, "") }}</th>
       {% for o in hours %}{% set sl = by_hour.get(o) %}
-      <td>{% if not sl %}<span class="cella text-muted">chiuso</span>
-        {% else %}<span class="cella {{ SLOT_STATES[sl.stato][1] }}">
+      <td>{% if not sl %}<span class="cell text-muted">chiuso</span>
+        {% else %}<span class="cell {{ SLOT_STATES[sl.stato][1] }}">
           {% if sl.codice %}<strong class="font-monospace">{{ sl.codice }}</strong><br>{{ (ACTIVITIES[sl.attivita].name if sl.attivita in ACTIVITIES else "Riservato")|truncate(18, True, "…") }}
           {% else %}{{ SLOT_STATES[sl.stato][0] }}{% endif %}</span>{% endif %}</td>
       {% endfor %}
@@ -45,16 +45,16 @@
 </div>
 
 <h2 class="h4">Riserva uno slot (manutenzione, società sportive, eventi)</h2>
-<form method="post" action="/ufficio/blocca" class="row g-2 align-items-end mb-4">
+<form method="post" action="/backoffice/block" class="row g-2 align-items-end mb-4">
   <input type="hidden" name="csrf_token" value="{{ csrf }}">
-  <div class="col-md-5"><label for="inizio" class="form-label small">Slot</label>
-    <select id="inizio" name="inizio" class="form-select" required>
+  <div class="col-md-5"><label for="start" class="form-label small">Slot</label>
+    <select id="start" name="start" class="form-select" required>
     {% for g in days %}{% for s in g.slot if s.libero %}
       <option value="{{ s.inizio }}">{{ g.data|long_date }} {{ s.ora }}</option>
     {% endfor %}{% endfor %}
     </select></div>
-  <div class="col-md-5"><label for="motivo" class="form-label small">Motivo</label>
-    <input id="motivo" name="motivo" class="form-control border" required maxlength="280" placeholder="es. manutenzione impianto luci"></div>
+  <div class="col-md-5"><label for="reason" class="form-label small">Motivo</label>
+    <input id="reason" name="reason" class="form-control border" required maxlength="280" placeholder="es. manutenzione impianto luci"></div>
   <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Riserva</button></div>
 </form>
 
@@ -73,15 +73,15 @@
       <td class="small font-monospace">{{ p.iuv or "" }}</td>
       <td class="d-flex gap-1">
         {% if p.stato == "ATTESA_PAGAMENTO" %}
-        <form method="post" action="/ufficio/{{ p.codice }}/conferma" class="d-flex gap-1">
+        <form method="post" action="/backoffice/{{ p.codice }}/confirm" class="d-flex gap-1">
           <input type="hidden" name="csrf_token" value="{{ csrf }}">
           <label class="visually-hidden" for="rif-{{ p.codice }}">Riferimento pagamento</label>
-          <input id="rif-{{ p.codice }}" name="riferimento" class="form-control form-control-sm" placeholder="Rif. ricevuta" required>
+          <input id="rif-{{ p.codice }}" name="reference" class="form-control form-control-sm" placeholder="Rif. ricevuta" required>
           <button class="btn btn-success btn-sm">Conferma</button>
         </form>
         {% endif %}
         {% if p.stato in ("ATTESA_PAGAMENTO", "CONFERMATA", "BLOCCO") %}
-        <form method="post" action="/ufficio/{{ p.codice }}/annulla">
+        <form method="post" action="/backoffice/{{ p.codice }}/cancel">
           <input type="hidden" name="csrf_token" value="{{ csrf }}">
           <button class="btn btn-outline-danger btn-sm">Annulla</button>
         </form>

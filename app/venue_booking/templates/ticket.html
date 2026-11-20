@@ -20,10 +20,10 @@
       <p class="small text-muted mb-0">Pagato {{ p.importo_cent|euro }} · IUV {{ p.iuv or "—" }}</p>
     </div></div>
     <div class="d-flex flex-wrap gap-2 justify-content-center mt-3">
-      <a class="btn btn-outline-primary" href="/prenotazione/{{ p.codice }}/calendario.ics">Aggiungi al calendario</a>
-      <a class="btn btn-outline-primary" href="/mie-prenotazioni">Le mie prenotazioni</a>
+      <a class="btn btn-outline-primary" href="/booking/{{ p.codice }}/calendar.ics">Aggiungi al calendario</a>
+      <a class="btn btn-outline-primary" href="/my-bookings">Le mie prenotazioni</a>
       {% if p.stato in ("CONFERMATA", "ATTESA_PAGAMENTO") %}
-      <form method="post" action="/prenotazione/{{ p.codice }}/annulla">
+      <form method="post" action="/booking/{{ p.codice }}/cancel">
         <input type="hidden" name="csrf_token" value="{{ csrf }}">
         <button class="btn btn-outline-danger" type="submit">Annulla</button>
       </form>

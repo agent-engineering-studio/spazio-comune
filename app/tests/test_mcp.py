@@ -40,45 +40,45 @@ def mcp_office(app_client):
 
 
 def test_exposed_tools(mcp_public, mcp_office):
-    public_keys = {"info_spazio", "disponibilita", "cerca_orari", "domanda", "link_prenotazione"}
+    public_keys = {"venue_info", "availability", "search_slots", "ask", "booking_link"}
     assert set(_call(mcp_public)) == public_keys
-    assert set(_call(mcp_office)) == public_keys | {"occupazione_slot", "dettaglio_prenotazione"}
+    assert set(_call(mcp_office)) == public_keys | {"slot_occupancy", "booking_detail"}
 
 
 def test_info_and_availability(app_client, mcp_public):
     _book_and_pay(app_client)
-    info = _call(mcp_public, "info_spazio")
+    info = _call(mcp_public, "venue_info")
     assert info["nome"].startswith("Campo comunale") and info["comune"] == "Comune di Gioia del Colle"
-    cal = _call(mcp_public, "disponibilita", dal="2026-11-13", giorni=1)
+    cal = _call(mcp_public, "availability", start_date="2026-11-13", days=1)
     states = {s["ora"]: s["stato"] for s in cal[0]["slot"]}
     assert states["20:00"] == "occupato" and "codice" not in cal[0]["slot"][0]
-    free = _call(mcp_public, "disponibilita", dal="2026-11-13", giorni=1, solo_liberi=True)
+    free = _call(mcp_public, "availability", start_date="2026-11-13", days=1, only_free=True)
     assert "20:00" not in [s["ora"] for s in free[0]["slot"]]
-    assert "AAAA-MM-GG" in _call(mcp_public, "disponibilita", dal="13/11/2026")["errore"]
+    assert "AAAA-MM-GG" in _call(mcp_public, "availability", start_date="13/11/2026")["errore"]
 
 
 def test_search_times_and_link(app_client, mcp_public):
     _book_and_pay(app_client)
-    r = _call(mcp_public, "cerca_orari", richiesta="calcetto venerdì sera alle 20")
+    r = _call(mcp_public, "search_slots", request="calcetto venerdì sera alle 20")
     proposal = r["proposte"][0]
     assert proposal["ora"] in ("19:00", "21:00")
-    link = _call(mcp_public, "link_prenotazione", inizio=proposal["inizio"], attivita="calcetto")
+    link = _call(mcp_public, "booking_link", start=proposal["inizio"], activity="calcetto")
     assert link["disponibile"] and link["link"] == proposal["link_prenotazione"]
-    taken = _call(mcp_public, "link_prenotazione", inizio="2026-11-13T20:00:00+01:00", attivita="calcetto")
+    taken = _call(mcp_public, "booking_link", start="2026-11-13T20:00:00+01:00", activity="calcetto")
     assert taken == {**taken, "disponibile": False, "stato": "occupato"}
-    assert "attivita" in _call(mcp_public, "link_prenotazione", inizio=proposal["inizio"], attivita="nuoto")["errore"]
-    assert _call(mcp_public, "domanda", testo="quanto costa il calcetto?")["trovata"] is True
+    assert "activity" in _call(mcp_public, "booking_link", start=proposal["inizio"], activity="nuoto")["errore"]
+    assert _call(mcp_public, "ask", question="quanto costa il calcetto?")["trovata"] is True
 
 
 def test_office_tools(app_client, mcp_office):
     _book_and_pay(app_client)
-    occ = _call(mcp_office, "occupazione_slot", dal="2026-11-13", giorni=1)
+    occ = _call(mcp_office, "slot_occupancy", start_date="2026-11-13", days=1)
     code = {s["ora"]: s["codice"] for s in occ[0]["slot"]}["20:00"]
     assert code.startswith("GDC-")
-    detail = _call(mcp_office, "dettaglio_prenotazione", codice=code.lower())
+    detail = _call(mcp_office, "booking_detail", code=code.lower())
     assert detail["stato"] == "CONFERMATA" and detail["codice"] == code and "cf" not in detail
 
 
 def test_wrong_office_credentials(app_client):
     srv = mcp_venue.create_server(mcp_venue.AppClient("http://testserver", client=app_client, office=("u", "x")))
-    assert "401" in _call(srv, "occupazione_slot")["errore"]
+    assert "401" in _call(srv, "slot_occupancy")["errore"]

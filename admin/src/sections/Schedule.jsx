@@ -31,7 +31,7 @@ export default function Schedule({ data, meta, save, onChange }) {
       <Alert type="info" title="Orario in vigore:">{data.anteprima}</Alert>
       {data.fuori_calendario.length > 0 && (
         <Alert type="warning" role="alert" title={`${data.fuori_calendario.length} prenotazioni attive fuori dall'orario in vigore.`}>
-          Restano valide: contatta gli intestatari o annullale dalla pagina <a href="/ufficio">Ufficio</a>.
+          Restano valide: contatta gli intestatari o annullale dalla pagina <a href="/backoffice">Backoffice</a>.
           <ul className="mb-0 small">{data.fuori_calendario.map((b) => (
             <li key={b.codice}><span className="font-monospace">{b.codice}</span> – {formatShortDate(b.inizio)} – {b.cognome ? `${b.cognome} ${b.nome}` : b.note}</li>
           ))}</ul>
@@ -103,7 +103,7 @@ export default function Schedule({ data, meta, save, onChange }) {
 
       <fieldset className="mb-4"><legend className="h5">Chiusure straordinarie</legend>
         <p className="small">Manutenzioni, eventi, ordinanze: nei giorni indicati non si prenota. Il motivo compare nel calendario pubblico.
-          Per chiudere solo alcune ore usa "Riserva uno slot" nella pagina <a href="/ufficio">Ufficio</a>.</p>
+          Per chiudere solo alcune ore usa "Riserva uno slot" nella pagina <a href="/backoffice">Backoffice</a>.</p>
         {d.chiusure.length > 0 && (
           <table className="table table-sm align-middle">
             <caption className="visually-hidden">Chiusure straordinarie</caption>

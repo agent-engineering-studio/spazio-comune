@@ -16,6 +16,14 @@ vedi [Installare su una macchina virtuale](#installare-su-una-macchina-virtuale)
 
 ![Demo](docs/demo/spazio-comune-demo.gif)
 
+| Calendario: libero, occupato, passato | Backoffice dell'ufficio |
+|---|---|
+| ![Calendario degli slot](docs/screenshot/09_calendar.png) | ![Occupazione degli slot nel backoffice](docs/screenshot/10_occupancy.png) |
+| **Amministrazione: orari del regolamento** | **Ticket con QR e verifica del custode** |
+| ![Amministrazione](docs/screenshot/11_admin.png) | ![Ticket](docs/screenshot/05_ticket.png) |
+
+Video completo: [orizzontale](docs/demo/spazio-comune-demo.mp4) · [verticale per smartphone](docs/demo/spazio-comune-demo-verticale.mp4).
+
 > Proposta indipendente, non un servizio ufficiale del Comune. SPID/CIE e pagoPA sono simulati; i dati della demo
 > sono fittizi.
 
@@ -205,7 +213,7 @@ password SIL, codice del tipo dovuto). La richiesta, con la bozza da inviare, è
 [`proposta/richiesta-sil-mypay.md`](proposta/richiesta-sil-mypay.md). Le credenziali ricevute si inseriscono in
 `/admin` → *Pagamenti pagoPA*, dove sono conservate cifrate. Il collegamento effettivo richiede di
 completare l'adapter `MyPaySILGateway` con il WSDL della Regione; fino ad allora l'ufficio conferma i pagamenti
-allo sportello da `/ufficio`.
+allo sportello da `/backoffice`.
 
 ### Gestione quotidiana
 
@@ -242,9 +250,9 @@ docker compose --profile llm up --build -d        # + LLM locale con Ollama (opz
 |---|---|---|
 | Cittadino | `/` | SPID/CIE (simulato finché non si configura il gateway) |
 | Amministrazione | `/admin` | `ADMIN_USER` / `ADMIN_PASSWORD` (React + Vite, servita dall'app) |
-| Ufficio | `/ufficio` | Basic auth `UFFICIO_USER` / `UFFICIO_PASSWORD` |
-| Custode | `/custode` | utente `custode` / `CUSTODE_PASSWORD` |
-| API (OpenAPI) | `/api/docs` | libero; `/api/v1/ufficio/*` con le credenziali dell'ufficio ([riferimento](#riferimento-api-rest)) |
+| Ufficio | `/backoffice` | Basic auth `UFFICIO_USER` / `UFFICIO_PASSWORD` |
+| Custode | `/checkin` | utente `custode` / `CUSTODE_PASSWORD` |
+| API (OpenAPI) | `/api/docs` | libero; `/api/v1/backoffice/*` con le credenziali dell'ufficio ([riferimento](#riferimento-api-rest)) |
 | Server MCP | `http://localhost:8090/mcp` | solo dalla macchina locale ([come collegarlo](#collegare-un-sistema-agentico)) |
 
 ### Schema architetturale
@@ -358,7 +366,7 @@ SPAZIO_FESTIVI_EXTRA=26/05                       # festa patronale o altre chius
 
 Dalla pagina di amministrazione si fa di più: fasce diverse per ogni giorno della settimana, anche al minuto
 (`08:30-12:30`), orari settimanali diversi per periodo dell'anno, **chiusure straordinarie** tra due date con motivo
-mostrato nel calendario. Per chiudere solo alcune ore resta *Riserva uno slot* in `/ufficio`.
+mostrato nel calendario. Per chiudere solo alcune ore resta *Riserva uno slot* in `/backoffice`.
 
 **Applicazione e sicurezza**
 
@@ -368,8 +376,8 @@ mostrato nel calendario. Per chiudere solo alcune ore resta *Riserva uno slot* i
 | `APP_PORT` / `MCP_PORT` / `DEMO_PORT` | `8000` / `8090` / `8001` | porte del reverse proxy | Porte sulla macchina che ospita Docker: da cambiare se già occupate (con `APP_PORT` aggiornare `BASE_URL`) |
 | `SECRET_KEY` | casuale a ogni avvio | `openssl rand -hex 32`, **fisso** | Firma sessioni e QR e cifra i segreti salvati dall'amministrazione; se cambia, i QR emessi non valgono più e le credenziali pagoPA/SPID vanno reinserite |
 | `ADMIN_USER` / `ADMIN_PASSWORD` | `amministratore` / `cambiami-admin` | utente nominativo / `openssl rand -base64 24` | Pagina di amministrazione `/admin`; senza password resta chiusa. Si cambiano poi dalla pagina stessa |
-| `UFFICIO_USER` / `UFFICIO_PASSWORD` | `ufficio.sport` / `cambiami` | utente nominativo / `openssl rand -base64 24` | Back-office e API `/api/v1/ufficio/*` |
-| `CUSTODE_PASSWORD` | `custode` | `openssl rand -base64 18` | Pagina `/custode` (utente `custode`) |
+| `UFFICIO_USER` / `UFFICIO_PASSWORD` | `ufficio.sport` / `cambiami` | utente nominativo / `openssl rand -base64 24` | Back-office e API `/api/v1/backoffice/*` |
+| `CUSTODE_PASSWORD` | `custode` | `openssl rand -base64 18` | Pagina `/checkin` (utente `custode`) |
 | `FEED_TOKEN` | casuale a ogni avvio | `openssl rand -hex 24`, **fisso** | Token del calendario iCal dell'ufficio |
 | `TTL_ATTESA_MIN` | `15` | `15` | Minuti di riserva dello slot durante il pagamento |
 | `COOKIE_SECURE` | `false` | **`true`** | Cookie solo su HTTPS |
@@ -417,25 +425,25 @@ Documentazione interattiva OpenAPI su **`/api/docs`**, schema su `/openapi.json`
 | Metodo e percorso | Parametri | Risposta |
 |---|---|---|
 | `GET /api/v1/health` | – | `{"stato":"ok","ia":true,"ora":"…"}`: stato dell'app e dell'assistente |
-| `GET /api/v1/spazio` | – | il luogo: nome, indirizzo, Comune, ufficio, orario, durata slot, preavviso, attività con `tariffa_cent`, `url` |
-| `GET /api/v1/disponibilita` | `dal` (AAAA-MM-GG, predefinito oggi), `giorni` (1-14, predefinito 7) | per giorno: `data`, `liberi`, `festivo`, `slot[]` con `inizio`, `fine`, `ora`, `libero`, `stato` (`libero` · `occupato` · `in_pagamento` · `riservato` · `passato`) |
-| `GET /api/v1/assistente` | `testo` (max 500 caratteri), es. *calcetto venerdì sera alle 20* | `intento` (attività, data, fascia, ora, `backend`, `generato_da_ia`) e fino a 4 `proposte` con `link_prenotazione`; se il giorno richiesto è pieno le proposte sono nei giorni successivi e `messaggio` lo spiega |
-| `GET /api/v1/faq` | `domanda` (max 500 caratteri) | `risposta`, `fonti`, `trovata`, `backend`, `generato_da_ia` |
+| `GET /api/v1/venue` | – | il luogo: nome, indirizzo, Comune, ufficio, orario, durata slot, preavviso, attività con `tariffa_cent`, `url` |
+| `GET /api/v1/availability` | `from` (AAAA-MM-GG, predefinito oggi), `days` (1-14, predefinito 7) | per giorno: `data`, `liberi`, `festivo`, `slot[]` con `inizio`, `fine`, `ora`, `libero`, `stato` (`libero` · `occupato` · `in_pagamento` · `riservato` · `passato`) |
+| `GET /api/v1/assistant` | `text` (max 500 caratteri), es. *calcetto venerdì sera alle 20* | `intento` (attività, data, fascia, ora, `backend`, `generato_da_ia`) e fino a 4 `proposte` con `link_prenotazione`; se il giorno richiesto è pieno le proposte sono nei giorni successivi e `messaggio` lo spiega |
+| `GET /api/v1/faq` | `question` (max 500 caratteri) | `risposta`, `fonti`, `trovata`, `backend`, `generato_da_ia` |
 
 #### API dell'ufficio (Basic auth `UFFICIO_USER` / `UFFICIO_PASSWORD`)
 
 | Metodo e percorso | Parametri | Risposta |
 |---|---|---|
-| `GET /api/v1/ufficio/occupazione` | `dal`, `giorni` (1-14) | come `disponibilita`, e per ogni slot anche `codice` (numero di prenotazione), `stato_prenotazione`, `attivita`, `intestatario` |
-| `GET /api/v1/ufficio/prenotazioni/{codice}` | numero di prenotazione, es. `GDC-7KQ2-M4XP` | `codice`, `attivita`, `inizio`, `fine`, `stato`, `canale`, `importo_cent`, `iuv`, `cognome`, `nome`, `note`, `creata_il` (mai il codice fiscale) |
-| `GET /ufficio/export.csv` | `dal`, `al` | CSV per la ragioneria (separatore `;`) |
-| `GET /ufficio/agenda.ics` | `token` = `FEED_TOKEN` (non Basic auth) | calendario iCal per Outlook, Thunderbird, eAgenda |
+| `GET /api/v1/backoffice/occupancy` | `from`, `days` (1-14) | come `availability`, e per ogni slot anche `codice` (numero di prenotazione), `stato_prenotazione`, `attivita`, `intestatario` |
+| `GET /api/v1/backoffice/bookings/{code}` | numero di prenotazione, es. `GDC-7KQ2-M4XP` | `codice`, `attivita`, `inizio`, `fine`, `stato`, `canale`, `importo_cent`, `iuv`, `cognome`, `nome`, `note`, `creata_il` (mai il codice fiscale) |
+| `GET /backoffice/export.csv` | `from`, `to` | CSV per la ragioneria (separatore `;`) |
+| `GET /backoffice/calendar.ics` | `token` = `FEED_TOKEN` (non Basic auth) | calendario iCal per Outlook, Thunderbird, eAgenda |
 
 <details>
 <summary>Esempi di chiamata e risposta (istanza demo)</summary>
 
 ```bash
-curl http://localhost:8001/api/v1/spazio
+curl http://localhost:8001/api/v1/venue
 ```
 ```json
 {"nome": "Campo comunale coperto di via Benagiano", "indirizzo": "Via Benagiano, 70023 Gioia del Colle (BA)",
@@ -447,7 +455,7 @@ curl http://localhost:8001/api/v1/spazio
 ```
 
 ```bash
-curl "http://localhost:8001/api/v1/disponibilita?dal=2026-11-13&giorni=1"
+curl "http://localhost:8001/api/v1/availability?from=2026-11-13&days=1"
 ```
 ```json
 [{"data": "2026-11-13", "liberi": 2, "slot": [
@@ -456,17 +464,17 @@ curl "http://localhost:8001/api/v1/disponibilita?dal=2026-11-13&giorni=1"
 ```
 
 ```bash
-curl -G http://localhost:8001/api/v1/assistente --data-urlencode "testo=calcetto venerdì sera alle 20"
+curl -G http://localhost:8001/api/v1/assistant --data-urlencode "text=calcetto venerdì sera alle 20"
 ```
 ```json
 {"intento": {"attivita": "calcetto", "data": "2026-11-13", "fascia": "sera", "ora": "20:00", "giocatori": null,
              "confidenza": 1.0, "backend": "rules", "generato_da_ia": false},
  "proposte": [{"data": "2026-11-13", "ora": "19:00", "inizio": "2026-11-13T19:00:00+01:00", "stato": "libero",
-   "link_prenotazione": "http://localhost:8001/prenota?inizio=2026-11-13T19%3A00%3A00%2B01%3A00&attivita=calcetto"}]}
+   "link_prenotazione": "http://localhost:8001/book?start=2026-11-13T19%3A00%3A00%2B01%3A00&activity=calcetto"}]}
 ```
 
 ```bash
-curl -G http://localhost:8001/api/v1/faq --data-urlencode "domanda=posso annullare?"
+curl -G http://localhost:8001/api/v1/faq --data-urlencode "question=posso annullare?"
 ```
 ```json
 {"risposta": "Puoi annullare online dall'area 'Le mie prenotazioni' fino a 24 ore prima. …",
@@ -474,7 +482,7 @@ curl -G http://localhost:8001/api/v1/faq --data-urlencode "domanda=posso annulla
 ```
 
 ```bash
-curl -u ufficio.sport:cambiami "http://localhost:8001/api/v1/ufficio/occupazione?dal=2026-11-13&giorni=1"
+curl -u ufficio.sport:cambiami "http://localhost:8001/api/v1/backoffice/occupancy?from=2026-11-13&days=1"
 ```
 ```json
 [{"data": "2026-11-13", "liberi": 2, "slot": [
@@ -502,15 +510,15 @@ sessione scade dopo 30 minuti di inattività. I segreti non tornano mai indietro
 
 | Percorso | Chi | Cosa |
 |---|---|---|
-| `GET /` · `POST /assistente` · `POST /faq` | cittadino | calendario, assistente IA, domande |
-| `GET /prenota?inizio=…&attivita=…` · `POST /prenota` | cittadino (SPID/CIE) | riepilogo e conferma, poi pagoPA |
-| `GET /pagamento/esito/{codice}` | cittadino | ritorno da pagoPA, verifica del pagamento |
-| `GET /prenotazione/{codice}` · `/calendario.ics` · `POST …/annulla` | intestatario | ticket con QR, evento calendario, annullamento |
-| `GET /mie-prenotazioni` · `/privacy` · `/auth/login` · `/auth/logout` | cittadino | area personale e accesso |
-| `GET /ufficio` · `POST /ufficio/blocca` · `POST /ufficio/{codice}/conferma` · `POST /ufficio/{codice}/annulla` | ufficio | back-office, griglia di occupazione, riserve, pagamenti allo sportello |
-| `GET /custode` · `POST /custode` | custode | verifica QR o numero di prenotazione |
+| `GET /` · `POST /assistant` · `POST /faq` | cittadino | calendario, assistente IA, domande |
+| `GET /book?start=…&activity=…` · `POST /book` | cittadino (SPID/CIE) | riepilogo e conferma, poi pagoPA |
+| `GET /payment/result/{code}` | cittadino | ritorno da pagoPA, verifica del pagamento |
+| `GET /booking/{code}` · `/calendar.ics` · `POST …/cancel` | intestatario | ticket con QR, evento calendario, annullamento |
+| `GET /my-bookings` · `/privacy` · `/auth/login` · `/auth/mock` · `/auth/logout` | cittadino | area personale e accesso |
+| `GET /backoffice` · `POST /backoffice/block` · `POST /backoffice/{code}/confirm` · `POST /backoffice/{code}/cancel` | ufficio | back-office, griglia di occupazione, riserve, pagamenti allo sportello |
+| `GET /checkin` · `POST /checkin` | custode | verifica QR o numero di prenotazione |
 | `GET /admin` | amministratore | impostazioni: luogo e logo, tariffe, orari, pagoPA, SPID/CIE, accessi, registro |
-| `GET /auth/oidc/avvia` · `/auth/oidc/callback` | cittadino | accesso SPID/CIE tramite il gateway OpenID Connect |
+| `GET /auth/oidc/start` · `/auth/oidc/callback` | cittadino | accesso SPID/CIE tramite il gateway OpenID Connect |
 
 #### Server di inferenza (solo rete interna Docker, `http://inference:8080`)
 
@@ -526,7 +534,7 @@ sessione scade dopo 30 minuti di inattività. I segreti non tornano mai indietro
 
 `mcp_server/server.py` (SDK ufficiale `mcp`, FastMCP) espone il luogo come strumenti per assistenti e agenti.
 Passa **solo** dalle API REST qui sopra: non legge il database e non conosce i segreti dell'app.
-**L'agente propone, la persona decide**: nessuno strumento prenota o paga; `link_prenotazione` restituisce il
+**L'agente propone, la persona decide**: nessuno strumento prenota o paga; `booking_link` restituisce il
 link da aprire per completare con SPID/CIE e pagoPA.
 
 #### URL e trasporti
@@ -545,13 +553,13 @@ in Docker `http://app:8000`), `MCP_TRANSPORT` (`stdio` | `http`), `MCP_HOST`/`MC
 
 | Tool | Parametri | Restituisce |
 |---|---|---|
-| `info_spazio` | – | luogo, Comune, ufficio, orario, attività e tariffe (centesimi), URL del sito |
-| `disponibilita` | `dal?` (AAAA-MM-GG), `giorni` = 7 (1-14), `solo_liberi` = false | calendario con lo stato di ogni slot |
-| `cerca_orari` | `richiesta` (frase in italiano) | intento riconosciuto e fino a 4 proposte con `link_prenotazione` |
-| `domanda` | `testo` | risposta dalle fonti ufficiali; `trovata: false` se non c'è, e allora si rimanda all'ufficio |
-| `link_prenotazione` | `inizio` (ISO 8601 come in `disponibilita`), `attivita` (codice) | `{disponibile, link, nota}`, oppure `{disponibile: false, stato}` se lo slot è preso |
-| `occupazione_slot` *(ufficio)* | `dal?`, `giorni` = 7 | per ogni slot, `codice` (numero di prenotazione), stato, attività, intestatario |
-| `dettaglio_prenotazione` *(ufficio)* | `codice`, es. `GDC-7KQ2-M4XP` | dettaglio della prenotazione, senza codice fiscale |
+| `venue_info` | – | luogo, Comune, ufficio, orario, attività e tariffe (centesimi), URL del sito |
+| `availability` | `start_date?` (AAAA-MM-GG), `days` = 7 (1-14), `only_free` = false | calendario con lo stato di ogni slot |
+| `search_slots` | `request` (frase in italiano) | intento riconosciuto e fino a 4 proposte con `link_prenotazione` |
+| `ask` | `question` | risposta dalle fonti ufficiali; `trovata: false` se non c'è, e allora si rimanda all'ufficio |
+| `booking_link` | `start` (ISO 8601, il campo `inizio` di `availability`), `activity` (codice) | `{disponibile, link, nota}`, oppure `{disponibile: false, stato}` se lo slot è preso |
+| `slot_occupancy` *(ufficio)* | `start_date?`, `days` = 7 | per ogni slot, `codice` (numero di prenotazione), stato, attività, intestatario |
+| `booking_detail` *(ufficio)* | `code`, es. `GDC-7KQ2-M4XP` | dettaglio della prenotazione, senza codice fiscale |
 
 Gli ultimi due compaiono solo se nel `.env` sono valorizzati `MCP_UFFICIO_USER` e `MCP_UFFICIO_PASSWORD`
 (stesse credenziali del back-office). Gli errori (data non valida, slot inesistente, app non raggiungibile)
@@ -607,7 +615,7 @@ from mcp.client.streamable_http import streamablehttp_client
 async with streamablehttp_client("http://localhost:8090/mcp") as (r, w, _):
     async with ClientSession(r, w) as s:
         await s.initialize()
-        print(await s.call_tool("cerca_orari", {"richiesta": "tennis doppio domani sera"}))
+        print(await s.call_tool("search_slots", {"richiesta": "tennis doppio domani sera"}))
 ```
 
 **Ispezione e debug**: `npx @modelcontextprotocol/inspector`, trasporto *Streamable HTTP*, URL

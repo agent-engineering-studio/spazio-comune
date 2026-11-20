@@ -8,8 +8,8 @@ Regola invariata: l'agente propone, la persona decide. Il server MCP non
 prenota e non paga; restituisce il link che il cittadino apre per completare
 la prenotazione con SPID/CIE e pagoPA.
 
-Strumenti per tutti:      info_spazio, disponibilita, cerca_orari, domanda, link_prenotazione
-Strumenti per l'ufficio:  occupazione_slot, dettaglio_prenotazione
+Strumenti per tutti:      venue_info, availability, search_slots, ask, booking_link
+Strumenti per l'ufficio:  slot_occupancy, booking_detail
                           (solo se SPAZIO_COMUNE_UFFICIO_USER/PASSWORD sono impostati)
 
     python mcp_server/server.py                         # stdio (Claude Desktop, Claude Code, IDE)
@@ -28,7 +28,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 INSTRUCTIONS = (
     "Strumenti per consultare un luogo comunale prenotabile (orari, disponibilità, tariffe, regole). "
-    "Non puoi prenotare né pagare: quando la persona ha scelto un orario, dalle il link_prenotazione "
+    "Non puoi prenotare né pagare: quando la persona ha scelto un orario, dalle il booking_link "
     "da aprire; completerà lei l'accesso con SPID/CIE e il pagamento pagoPA. "
     "Non chiedere né inviare dati personali (codice fiscale, telefono, email)."
 )
@@ -87,73 +87,73 @@ def create_server(app: AppClient | None = None) -> FastMCP:
     )
 
     @mcp.tool()
-    def info_spazio() -> dict:
+    def venue_info() -> dict:
         """Il luogo prenotabile: nome, indirizzo, Comune, ufficio, orari, attività e tariffe (in centesimi)."""
-        return app.get("/api/v1/spazio")
+        return app.get("/api/v1/venue")
 
     @mcp.tool()
-    def disponibilita(dal: str | None = None, giorni: int = 7, solo_liberi: bool = False) -> list[dict]:
-        """Calendario degli slot da `dal` (AAAA-MM-GG, predefinito oggi) per `giorni` giorni (1-14).
+    def availability(start_date: str | None = None, days: int = 7, only_free: bool = False) -> list[dict]:
+        """Calendario degli slot da `start_date` (AAAA-MM-GG, predefinito oggi) per `days` giorni (1-14).
 
         Ogni slot ha uno stato: libero, occupato, in_pagamento, riservato (dall'ufficio) o passato.
         Un giorno senza slot è chiuso; `festivo` indica i giorni festivi.
-        Con solo_liberi=true restituisce soltanto gli slot prenotabili.
+        Con only_free=true restituisce soltanto gli slot prenotabili.
         """
-        calendar = app.get("/api/v1/disponibilita", dal=_iso_date(dal, "dal"), giorni=max(1, min(giorni, 14)))
-        if solo_liberi:
+        calendar = app.get("/api/v1/availability", **{"from": _iso_date(start_date, "start_date")}, days=max(1, min(days, 14)))
+        if only_free:
             calendar = [{**day, "slot": [s for s in day["slot"] if s["libero"]]} for day in calendar]
         return calendar
 
     @mcp.tool()
-    def cerca_orari(richiesta: str) -> dict:
+    def search_slots(request: str) -> dict:
         """Dalla frase in italiano agli orari liberi più vicini, es. "calcetto venerdì sera alle 20".
 
         Restituisce l'intento riconosciuto (attività, data, fascia, ora) e fino a 4 proposte,
-        ciascuna con il link_prenotazione da dare alla persona.
+        ciascuna con il link_prenotazione (link di prenotazione) da dare alla persona.
         """
-        return app.get("/api/v1/assistente", testo=richiesta[:500])
+        return app.get("/api/v1/assistant", text=request[:500])
 
     @mcp.tool()
-    def domanda(testo: str) -> dict:
+    def ask(question: str) -> dict:
         """Risponde su tariffe, pagamento, annullamento, accesso, privacy, citando le fonti ufficiali.
 
         Se la risposta non è nella base di conoscenza, `trovata` è false: rimanda all'ufficio.
         """
-        return app.get("/api/v1/faq", domanda=testo[:500])
+        return app.get("/api/v1/faq", question=question[:500])
 
     @mcp.tool()
-    def link_prenotazione(inizio: str, attivita: str) -> dict:
-        """Link che la persona apre per prenotare lo slot `inizio` (ISO 8601, come in disponibilita).
+    def booking_link(start: str, activity: str) -> dict:
+        """Link che la persona apre per prenotare lo slot `start` (ISO 8601, il campo inizio di availability).
 
         La prenotazione si completa sul sito con SPID/CIE e pagamento pagoPA: l'agente non prenota.
         """
-        info = app.get("/api/v1/spazio")
+        info = app.get("/api/v1/venue")
         codes = [a["codice"] for a in info["attivita"]]
-        if attivita not in codes:
-            raise AppError(f"attivita deve essere una tra: {', '.join(codes)}")
-        day = inizio[:10]
-        calendar = app.get("/api/v1/disponibilita", dal=_iso_date(day, "inizio"), giorni=1)
-        slot = next((s for d in calendar for s in d["slot"] if s["inizio"] == inizio), None)
+        if activity not in codes:
+            raise AppError(f"activity deve essere una tra: {', '.join(codes)}")
+        day = start[:10]
+        calendar = app.get("/api/v1/availability", **{"from": _iso_date(day, "start")}, days=1)
+        slot = next((s for d in calendar for s in d["slot"] if s["inizio"] == start), None)
         if slot is None:
-            raise AppError("Orario non previsto dal calendario: usa un 'inizio' restituito da disponibilita")
+            raise AppError("Orario non previsto dal calendario: usa un 'inizio' restituito da availability")
         if not slot["libero"]:
             return {"disponibile": False, "stato": slot["stato"],
-                    "messaggio": "Slot non disponibile: proponi un altro orario con cerca_orari o disponibilita"}
-        return {"disponibile": True, "inizio": inizio, "attivita": attivita,
-                "link": f"{info['url']}/prenota?inizio={quote(inizio)}&attivita={attivita}",
+                    "messaggio": "Slot non disponibile: proponi un altro orario con search_slots o availability"}
+        return {"disponibile": True, "inizio": start, "attivita": activity,
+                "link": f"{info['url']}/book?start={quote(start)}&activity={activity}",
                 "nota": "Apri il link per accedere con SPID/CIE e pagare con pagoPA."}
 
     if app.office:
         @mcp.tool()
-        def occupazione_slot(dal: str | None = None, giorni: int = 7) -> list[dict]:
+        def slot_occupancy(start_date: str | None = None, days: int = 7) -> list[dict]:
             """[Ufficio] Per ogni slot, il numero di prenotazione che lo occupa, lo stato e l'intestatario."""
-            return app.get("/api/v1/ufficio/occupazione", restricted=True,
-                           dal=_iso_date(dal, "dal"), giorni=max(1, min(giorni, 14)))
+            return app.get("/api/v1/backoffice/occupancy", restricted=True,
+                           **{"from": _iso_date(start_date, "start_date")}, days=max(1, min(days, 14)))
 
         @mcp.tool()
-        def dettaglio_prenotazione(codice: str) -> dict:
+        def booking_detail(code: str) -> dict:
             """[Ufficio] Dettaglio di una prenotazione dal suo numero (es. GDC-7KQ2-M4XP), senza codice fiscale."""
-            return app.get(f"/api/v1/ufficio/prenotazioni/{quote(codice.strip().upper())}", restricted=True)
+            return app.get(f"/api/v1/backoffice/bookings/{quote(code.strip().upper())}", restricted=True)
 
     return mcp
 

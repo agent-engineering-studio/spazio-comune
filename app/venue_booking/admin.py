@@ -17,7 +17,6 @@ API (solo amministratore, sessione con cookie firmato + header X-CSRF-Token):
   PUT  /api/v1/admin/logo                   logo dell'ente per l'header (PNG, JPEG o WebP, max 512 KB)
   DELETE /api/v1/admin/logo
 
-I vecchi indirizzi /amministrazione/... rimandano a /admin/... (301).
   GET  /logo                                       il logo, pubblico (header del sito)
 
 I segreti non tornano mai al browser: un segreto vuoto o assente conserva il
@@ -190,7 +189,7 @@ def register(app: FastAPI, *, cfg: RuntimeConfig, service: BookingService,
             "fuori_calendario": [{k: p[k] for k in ("codice", "inizio", "stato", "cognome", "nome", "note")}
                                  for p in service.off_schedule()],
             "meta": {"base_url": s.base_url, "redirect_uri": cfg.identity["redirect_uri"],
-                     "feed": f"{s.base_url}/ufficio/agenda.ics?token={cfg.access['feed_token']}",
+                     "feed": f"{s.base_url}/backoffice/calendar.ics?token={cfg.access['feed_token']}",
                      "backend_pagamento": PAYMENT_BACKENDS, "backend_identita": IDENTITY_BACKENDS,
                      "giorni": WEEKDAYS, "giorni_lunghi": WEEKDAY_NAMES, "password_minima": MIN_PASSWORD,
                      "ufficio": cfg.venue.office, "comune": cfg.venue.municipality, "luogo": cfg.venue.name,
@@ -198,13 +197,6 @@ def register(app: FastAPI, *, cfg: RuntimeConfig, service: BookingService,
         }
 
     # ---------------------------------------------------------------- interfaccia
-    @app.get("/amministrazione", include_in_schema=False)
-    @app.get("/amministrazione/{_path:path}", include_in_schema=False)
-    def old_admin_url(_path: str = ""):
-        """Indirizzo italiano delle prime versioni: si rimanda a /admin, con la sezione equivalente."""
-        target = {v: k for k, v in URL_SECTIONS.items()}.get(_path.strip("/"), "")
-        return RedirectResponse(f"/admin/{target}" if target else "/admin", status_code=301)
-
     @app.get("/admin", include_in_schema=False)
     @app.get("/admin/{_path:path}", include_in_schema=False)
     def admin_ui(_path: str = ""):

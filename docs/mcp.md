@@ -20,7 +20,7 @@ flowchart LR
 ```
 
 !!! abstract "L'agente propone, la persona decide"
-    Nessuno strumento prenota o paga. `link_prenotazione` verifica lo slot e restituisce il link che la persona
+    Nessuno strumento prenota o paga. `booking_link` verifica lo slot e restituisce il link che la persona
     apre per completare la prenotazione con SPID/CIE e pagoPA. Il server MCP passa **solo** dalle API REST
     dell'app: non legge il database e non conosce i segreti dell'app.
 
@@ -28,13 +28,13 @@ flowchart LR
 
 | Strumento | Per | Cosa fa |
 |---|---|---|
-| `info_spazio` | tutti | luogo, Comune, ufficio, orari, attività e tariffe |
-| `disponibilita(dal, giorni, solo_liberi)` | tutti | calendario con lo stato di ogni slot: `libero`, `occupato`, `in_pagamento`, `riservato`, `passato` |
-| `cerca_orari(richiesta)` | tutti | dalla frase *"calcetto venerdì sera alle 20"* a un massimo di 4 orari liberi, ognuno con il suo link |
-| `domanda(testo)` | tutti | FAQ su tariffe, pagamento, annullamento, privacy, con le fonti ufficiali |
-| `link_prenotazione(inizio, attivita)` | tutti | controlla che lo slot sia libero e restituisce il link di prenotazione |
-| `occupazione_slot(dal, giorni)` | ufficio | per ogni slot, il **numero di prenotazione** registrato, lo stato e l'intestatario |
-| `dettaglio_prenotazione(codice)` | ufficio | dettaglio di una prenotazione dal suo numero, senza codice fiscale |
+| `venue_info` | tutti | luogo, Comune, ufficio, orari, attività e tariffe |
+| `availability(start_date, days, only_free)` | tutti | calendario con lo stato di ogni slot: `libero`, `occupato`, `in_pagamento`, `riservato`, `passato` |
+| `search_slots(request)` | tutti | dalla frase *"calcetto venerdì sera alle 20"* a un massimo di 4 orari liberi, ognuno con il suo link |
+| `ask(question)` | tutti | FAQ su tariffe, pagamento, annullamento, privacy, con le fonti ufficiali |
+| `booking_link(start, activity)` | tutti | controlla che lo slot sia libero e restituisce il link di prenotazione |
+| `slot_occupancy(start_date, days)` | ufficio | per ogni slot, il **numero di prenotazione** registrato, lo stato e l'intestatario |
+| `booking_detail(code)` | ufficio | dettaglio di una prenotazione dal suo numero, senza codice fiscale |
 
 Gli strumenti dell'ufficio esistono solo se `MCP_UFFICIO_USER` e `MCP_UFFICIO_PASSWORD` sono valorizzati nel
 `.env`, con le stesse credenziali del back-office.
@@ -119,14 +119,14 @@ Gli strumenti dell'ufficio esistono solo se `MCP_UFFICIO_USER` e `MCP_UFFICIO_PA
 
 ## Esempio
 
-Richiesta di un agente a `cerca_orari` con `"tennis doppio domani sera"`:
+Richiesta di un agente a `search_slots` con `"tennis doppio domani sera"`:
 
 ```json
 {
   "intento": {"attivita": "tennis_doppio", "data": "2026-11-09", "fascia": "sera", "backend": "rules"},
   "proposte": [
     {"data": "2026-11-09", "ora": "18:00", "stato": "libero",
-     "link_prenotazione": "http://localhost:8000/prenota?inizio=2026-11-09T18%3A00%3A00%2B01%3A00&attivita=tennis_doppio"},
+     "link_prenotazione": "http://localhost:8000/book?start=2026-11-09T18%3A00%3A00%2B01%3A00&activity=tennis_doppio"},
     {"data": "2026-11-09", "ora": "19:00", "stato": "libero", "link_prenotazione": "…"}
   ]
 }

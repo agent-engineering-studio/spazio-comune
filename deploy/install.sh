@@ -294,8 +294,8 @@ step "Fatto"
 cat <<EOF
   Servizio:          $BASE_URL
   Amministrazione:   $BASE_URL/admin   (luogo, tariffe, orari, pagoPA, SPID/CIE, password)
-  Ufficio:           $BASE_URL/ufficio
-  Custode:           $BASE_URL/custode
+  Backoffice:        $BASE_URL/backoffice
+  Custode:           $BASE_URL/checkin
   Configurazione:    $CONF
   Log:               journalctl -u spazio-comune-app -f
   Backup database:   $BACKUP (ogni notte alle 02:30, conservati $KEEP_DAYS giorni)

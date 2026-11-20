@@ -82,7 +82,7 @@ class MockIdentity:
                             email="mario.rossi@example.org", method="SPID (simulato)")
 
     def login_url(self, return_url: str) -> str:
-        return f"/auth/simulato?ritorno={return_url}"
+        return f"/auth/mock?return_url={return_url}"
 
     def complete(self) -> Citizen:
         return self.DEMO_USER
@@ -147,7 +147,7 @@ class OIDCIdentity:
         """URL dell'autorizzazione; state, nonce e PKCE restano nella sessione del browser."""
         meta = self.discovery()
         state, nonce, verifier = secrets.token_urlsafe(24), secrets.token_urlsafe(24), secrets.token_urlsafe(48)
-        session_info["oidc"] = {"state": state, "nonce": nonce, "verifier": verifier, "ritorno": return_url,
+        session_info["oidc"] = {"state": state, "nonce": nonce, "verifier": verifier, "return_url": return_url,
                             "creato": int(time.time())}
         params_ = {
             "response_type": "code", "client_id": self.cfg["oidc_client_id"], "redirect_uri": self.redirect_uri,
@@ -208,7 +208,7 @@ class OIDCIdentity:
                 log.warning("userinfo OIDC: %s", e)
                 if not claims:
                     raise IdentityError("Attributi dell'utente non disponibili") from None
-        return self._citizen(claims), pending.get("ritorno") or "/"
+        return self._citizen(claims), pending.get("return_url") or "/"
 
     def _citizen(self, claims: dict) -> Citizen:
         def claim(key: str) -> str:

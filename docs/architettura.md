@@ -89,8 +89,8 @@ erDiagram
   prenotazione** che lo occupa. Annullamento e scadenza del pagamento lo riportano a `NULL` nella stessa
   transazione.
 - La vista **`v_occupazione`** unisce le due tabelle: per ogni slot stato, numero, attività, intestatario.
-  È la stessa informazione della griglia *Occupazione degli slot* in `/ufficio` e dell'API
-  `/api/v1/ufficio/occupazione`.
+  È la stessa informazione della griglia *Occupazione degli slot* in `/backoffice` e dell'API
+  `/api/v1/backoffice/occupancy`.
 - Doppia prenotazione impossibile per costruzione, con tre vincoli del database:
   - indice univoco sull'inizio delle prenotazioni attive;
   - vincolo di esclusione `EXCLUDE USING gist (tstzrange(inizio, fine) WITH &&)`: due prenotazioni attive non si possono sovrapporre nel tempo, nemmeno con durate diverse o scrivendo a mano in tabella;

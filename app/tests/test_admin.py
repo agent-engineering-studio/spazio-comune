@@ -52,7 +52,6 @@ def _save_schedule(c, week=None, **changes):
 
 # ------------------------------------------------------------ accesso
 def test_react_ui_served_by_app(app_client):
-    assert app_client.get("/amministrazione/orari", follow_redirects=False).headers["location"] == "/admin/schedule"
     r = app_client.get("/admin/schedule")
     assert r.status_code == 200 and '<div id="root">' in r.text and "/static/admin/assets/" in r.text
     asset = re.search(r'src="(/static/admin/assets/[^"]+\.js)"', r.text).group(1)
@@ -103,7 +102,7 @@ def test_saved_venue_applies_immediately_and_is_logged(app_client):
     assert r.status_code == 200, r.text
     assert r.json()["luogo"]["prefisso_codice"] == "PDS" and r.json()["salvate"]["luogo"]["aggiornata_da"] == "admin"
     assert "Palazzetto dello sport" in app_client.get("/").text
-    assert app_client.get("/api/v1/spazio").json()["nome"] == "Palazzetto dello sport"
+    assert app_client.get("/api/v1/venue").json()["nome"] == "Palazzetto dello sport"
     audit_log = app_client.get(f"{API}/audit-log").json()
     assert audit_log[0]["sezione"] == "luogo" and audit_log[0]["utente"] == "admin"
     assert "PDS-" in _book_and_pay(app_client).text
@@ -120,7 +119,7 @@ def test_invalid_venue_not_saved(app_client):
 
 # ------------------------------------------------------------ orari
 def _days(c, from_="2026-11-09", n=10):
-    return {g["data"]: g for g in c.get(f"/api/v1/disponibilita?dal={from_}&giorni={n}").json()}
+    return {g["data"]: g for g in c.get(f"/api/v1/availability?from={from_}&days={n}").json()}
 
 
 def test_time_bands_per_weekday(app_client):
@@ -131,7 +130,7 @@ def test_time_bands_per_weekday(app_client):
     assert [s["ora"] for s in g["2026-11-16"]["slot"]] == ["09:00", "10:00", "11:00", "12:00", "15:30", "16:30", "17:30"]
     assert g["2026-11-10"]["slot"] == []                                    # martedì chiuso
     assert [s["ora"] for s in g["2026-11-14"]["slot"]] == ["08:30", "09:30"]
-    assert "lun 09:00–13:00, 15:30–18:30" in app_client.get("/api/v1/spazio").json()["orario"]
+    assert "lun 09:00–13:00, 15:30–18:30" in app_client.get("/api/v1/venue").json()["orario"]
 
 
 def test_period_and_extraordinary_closure(app_client):
@@ -144,7 +143,7 @@ def test_period_and_extraordinary_closure(app_client):
     assert [s["ora"] for s in g["2026-11-16"]["slot"]] == ["10:00", "11:00"]   # nel periodo
     assert g["2026-11-13"]["slot"] == []                                    # venerdì chiuso nel periodo
     assert g["2026-11-11"]["chiusura"] == "Lavori al tetto" and g["2026-11-11"]["slot"] == []
-    assert "Chiuso: Lavori al tetto" in app_client.get("/?dal=2026-11-11").text
+    assert "Chiuso: Lavori al tetto" in app_client.get("/?from=2026-11-11").text
     # eliminare chiusura e periodo
     r = _save_schedule(app_client, periodi=[], chiusure=[])
     assert r.status_code == 200 and _days(app_client)["2026-11-11"]["chiusura"] is None
@@ -166,7 +165,7 @@ def test_schedule_change_flags_off_schedule_bookings(app_client):
     assert r.status_code == 200
     outside = r.json()["fuori_calendario"]
     assert len(outside) == 1 and outside[0]["codice"].startswith("GDC-") and "cf" not in outside[0]
-    assert "fuori dall'orario in vigore" in app_client.get("/ufficio", auth=("u", "p")).text
+    assert "fuori dall'orario in vigore" in app_client.get("/backoffice", auth=("u", "p")).text
     assert "20:00" not in [s["ora"] for s in _days(app_client)["2026-11-13"]["slot"]]
 
 
@@ -179,11 +178,11 @@ def test_fees_and_new_activity(app_client):
     items.append({"codice": "pallavolo", "nome": "Pallavolo", "tariffa_cent": 3000, "giocatori": "12", "preparazione": "", "attiva": True})
     r = app_client.put(f"{API}/settings/activities", json={"fonte_tariffe": "D.G.C. n. 1/2027", "elenco": items})
     assert r.status_code == 200, r.text
-    info = app_client.get("/api/v1/spazio").json()
+    info = app_client.get("/api/v1/venue").json()
     fees = {a["codice"]: a["tariffa_cent"] for a in info["attivita"]}
     assert fees == {"calcetto": 4550, "tennis_doppio": 2000, "pallavolo": 3000}
     assert info["fonte_tariffe"] == "D.G.C. n. 1/2027"
-    home = app_client.get("/?attivita=pallavolo").text
+    home = app_client.get("/?activity=pallavolo").text
     assert "Pallavolo" in home and "45,50" in home
     _book_and_pay(app_client, activity="pallavolo")
     p = app_client.app.state.service.items()[0]
@@ -218,7 +217,7 @@ def test_pagopa_credentials_encrypted_never_shown(app_client):
     assert _save(app_client, "pagamenti", mypay_ipa_ente="c_e039", mypay_password="").status_code == 200
     assert cfg.payments["mypay_password"] == "Segreto-SIL-123" and cfg.payments["mypay_ipa_ente"] == "c_e039"
     # con pagoPA reale la pagina di pagamento simulata non esiste più
-    assert app_client.get("/pagopa-simulato/RF00?ritorno=x").status_code == 404
+    assert app_client.get("/pagopa-mock/RF00?return_url=x").status_code == 404
     assert "Pagamenti simulati" not in app_client.get("/").text
 
 
@@ -253,9 +252,9 @@ def test_staff_passwords(app_client):
     assert r.status_code == 422 and "almeno 12" in r.json()["errore"]
     r = _staff_access(app_client, ufficio_user="sport.ufficio", ufficio_password="nuova-password-ufficio")
     assert r.status_code == 200, r.text
-    assert app_client.get("/ufficio", auth=("u", "p")).status_code == 401
-    assert app_client.get("/ufficio", auth=("sport.ufficio", "nuova-password-ufficio")).status_code == 200
-    assert app_client.get("/custode", auth=("custode", "c")).status_code == 200   # invariata
+    assert app_client.get("/backoffice", auth=("u", "p")).status_code == 401
+    assert app_client.get("/backoffice", auth=("sport.ufficio", "nuova-password-ufficio")).status_code == 200
+    assert app_client.get("/checkin", auth=("custode", "c")).status_code == 200   # invariata
     raw = json.dumps(app_client.app.state.db.query("SELECT valori FROM impostazioni WHERE sezione='accessi'"))
     assert "nuova-password-ufficio" not in raw and "scrypt$" in raw
 
@@ -269,12 +268,12 @@ def test_new_admin_password(app_client, settings, clock, inference_client):
 
 
 def test_new_calendar_address(app_client):
-    assert app_client.get("/ufficio/agenda.ics?token=feed").status_code == 200
+    assert app_client.get("/backoffice/calendar.ics?token=feed").status_code == 200
     assert _staff_access(app_client, rigenera_feed=True).status_code == 200
-    assert app_client.get("/ufficio/agenda.ics?token=feed").status_code == 404
+    assert app_client.get("/backoffice/calendar.ics?token=feed").status_code == 404
     new = app_client.app.state.config.access["feed_token"]
-    assert app_client.get(f"/ufficio/agenda.ics?token={new}").status_code == 200
-    assert new in app_client.get("/ufficio", auth=("u", "p")).text
+    assert app_client.get(f"/backoffice/calendar.ics?token={new}").status_code == 200
+    assert new in app_client.get("/backoffice", auth=("u", "p")).text
 
 
 # ------------------------------------------------------------ più istanze
@@ -347,17 +346,17 @@ def oidc_client(settings, clock, inference_client, gateway):
 
 def test_spid_cie_login_with_oidc(oidc_client, gateway):
     c = oidc_client
-    assert c.get("/auth/simulato?ritorno=/").status_code == 404   # niente più utente di prova
+    assert c.get("/auth/mock?return_url=/").status_code == 404   # niente più utente di prova
     assert "Entra con SPID o CIE" in c.get("/auth/login").text
-    r = c.get("/auth/oidc/avvia?ritorno=/mie-prenotazioni", follow_redirects=False)
+    r = c.get("/auth/oidc/start?return_url=/my-bookings", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith(f"{ISSUER}/authorize?")
     q = parse_qs(urlparse(r.headers["location"]).query)
     assert q["client_id"] == ["spazio-comune"] and q["code_challenge_method"] == ["S256"]
     assert q["redirect_uri"] == ["https://prenota.comune.example.it/auth/oidc/callback"]   # OIDC_REDIRECT_URI
     gateway.nonce = q["nonce"][0]
     r = c.get(f"/auth/oidc/callback?code=codice-ok&state={q['state'][0]}", follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/mie-prenotazioni"
-    assert "Anna Bianchi" in c.get("/mie-prenotazioni").text
+    assert r.status_code == 303 and r.headers["location"] == "/my-bookings"
+    assert "Anna Bianchi" in c.get("/my-bookings").text
     token_request = next(x for x in gateway.requests if x.url.path == "/token")
     assert parse_qs(token_request.content.decode())["redirect_uri"] == ["https://prenota.comune.example.it/auth/oidc/callback"]
     # lo stesso state non si riusa
@@ -367,14 +366,14 @@ def test_spid_cie_login_with_oidc(oidc_client, gateway):
 
 def test_oidc_rejects_wrong_state_and_nonce(oidc_client, gateway):
     c = oidc_client
-    c.get("/auth/oidc/avvia", follow_redirects=False)
+    c.get("/auth/oidc/start", follow_redirects=False)
     assert c.get("/auth/oidc/callback?code=codice-ok&state=altro").status_code == 400
-    r = c.get("/auth/oidc/avvia", follow_redirects=False)
+    r = c.get("/auth/oidc/start", follow_redirects=False)
     q = parse_qs(urlparse(r.headers["location"]).query)
     gateway.nonce = "nonce-di-un-altro"
     r = c.get(f"/auth/oidc/callback?code=codice-ok&state={q['state'][0]}")
     assert r.status_code == 400 and "nonce" in r.text
-    assert c.get("/mie-prenotazioni", follow_redirects=False).status_code == 303   # non autenticato
+    assert c.get("/my-bookings", follow_redirects=False).status_code == 303   # non autenticato
 
 
 def test_identity_read_only_in_admin(oidc_client, gateway):
@@ -393,7 +392,7 @@ def test_redirect_uri_defaults_to_base_url(settings, clock, inference_client, ga
     settings.identity_backend, settings.base_url = "oidc", "https://prenota.example.it"
     settings.oidc_issuer, settings.oidc_client_id, settings.oidc_client_secret = ISSUER, "x", "y"
     app = create_app(settings, now=clock, assistant=AIAssistant("http://x", client=inference_client))
-    r = TestClient(app).get("/auth/oidc/avvia", follow_redirects=False)
+    r = TestClient(app).get("/auth/oidc/start", follow_redirects=False)
     assert parse_qs(urlparse(r.headers["location"]).query)["redirect_uri"] == ["https://prenota.example.it/auth/oidc/callback"]
     app.state.db.close()
 
@@ -471,17 +470,17 @@ def test_fee_bands_set_the_payment_amount(app_client):
     _book_and_pay(app_client, start="2026-11-13T19:00:00+01:00", activity="tennis_doppio")   # nessuna tariffa in fascia
     fees = {p["inizio"][11:16] + p["attivita"]: p["importo_cent"] for p in service.items()}
     assert fees == {"20:00calcetto": 5000, "15:00calcetto": 4000, "19:00tennis_doppio": 2000}
-    home = app_client.get("/?attivita=calcetto&dal=2026-11-13").text
+    home = app_client.get("/?activity=calcetto&from=2026-11-13").text
     assert "Serale con illuminazione (19:00–24:00)" in home and "€ 50,00" in home
     assert "ore 21:00, Calcetto (calcio a 5), € 50,00" in home and "ore 16:00, Calcetto (calcio a 5), € 40,00" in home
-    info = app_client.get("/api/v1/spazio").json()["fasce_tariffarie"]
+    info = app_client.get("/api/v1/venue").json()["fasce_tariffarie"]
     assert info[0]["tariffe_cent"] == {"calcetto": 5000, "tennis_singolo": 1500} and info[1]["giorni"] == ["sab"]
 
 
 def test_summary_shows_band_fee(app_client):
     _save_fee_bands(app_client, [EVENING])
-    app_client.get("/auth/simulato?ritorno=/")
-    r = app_client.get("/prenota", params={"inizio": "2026-11-13T21:00:00+01:00", "attivita": "calcetto"})
+    app_client.get("/auth/mock?return_url=/")
+    r = app_client.get("/book", params={"start": "2026-11-13T21:00:00+01:00", "activity": "calcetto"})
     assert "€ 50,00" in r.text and "tariffa Serale con illuminazione" in r.text
 
 

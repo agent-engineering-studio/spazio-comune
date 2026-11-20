@@ -15,13 +15,13 @@
       </dl>
     </div></div>
 
-    <form method="post" action="/prenota">
+    <form method="post" action="/book">
       <input type="hidden" name="csrf_token" value="{{ csrf }}">
-      <input type="hidden" name="inizio" value="{{ start }}">
-      <input type="hidden" name="attivita" value="{{ activity.code }}">
+      <input type="hidden" name="start" value="{{ start }}">
+      <input type="hidden" name="activity" value="{{ activity.code }}">
       <div class="form-group">
-        <label for="telefono" class="active">Telefono (facoltativo, solo per avvisi su chiusure improvvise)</label>
-        <input type="tel" class="form-control" id="telefono" name="telefono" maxlength="20" autocomplete="tel">
+        <label for="phone" class="active">Telefono (facoltativo, solo per avvisi su chiusure improvvise)</label>
+        <input type="tel" class="form-control" id="phone" name="phone" maxlength="20" autocomplete="tel">
       </div>
       <div class="form-group">
         <label for="note" class="active">Note per il custode (facoltative)</label>

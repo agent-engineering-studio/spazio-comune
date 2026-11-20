@@ -160,7 +160,7 @@ python app/scripts/fetch_bootstrap_italia.py
 pytest
 ```
 
-Pagine: `/` cittadino · `/ufficio` back-office (Basic auth `UFFICIO_USER`/`UFFICIO_PASSWORD`) · `/custode` (utente `custode`, `CUSTODE_PASSWORD`) · `/api/docs` API.
+Pagine: `/` cittadino · `/backoffice` back-office (Basic auth `UFFICIO_USER`/`UFFICIO_PASSWORD`) · `/checkin` (utente `custode`, `CUSTODE_PASSWORD`) · `/api/docs` API.
 
 ### 8.3 Ciclo di vita della prenotazione
 

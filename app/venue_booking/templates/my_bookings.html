@@ -13,7 +13,7 @@
       {{ p.inizio|long_date|capitalize }}, ore {{ p.inizio[11:16] }}
       <span class="badge bg-{{ st[1] }} ms-1">{{ st[0] }}</span>
     </div>
-    <a class="btn btn-outline-primary btn-sm" href="/prenotazione/{{ p.codice }}">Apri {{ p.codice }}</a>
+    <a class="btn btn-outline-primary btn-sm" href="/booking/{{ p.codice }}">Apri {{ p.codice }}</a>
   </div></li>
 {% endfor %}
 </ul>

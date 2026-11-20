@@ -72,12 +72,12 @@ Il calendario di esempio prevede slot dalle 15 alle 22, dal lunedì al sabato (*
 
 </div>
 
-![Back-office dell'Ufficio Sport](screenshot/07_ufficio.png){ loading=lazy }
+![Back-office dell'Ufficio Sport](screenshot/07_backoffice.png){ loading=lazy }
 
 La griglia *Occupazione degli slot* mostra, per ogni orario dei prossimi 14 giorni, il **numero di
 prenotazione** registrato nel database: un orario, una prenotazione.
 
-![Occupazione degli slot con il numero di prenotazione](screenshot/10_occupazione.png){ loading=lazy }
+![Occupazione degli slot con il numero di prenotazione](screenshot/10_occupancy.png){ loading=lazy }
 
 ## Intelligenza artificiale sotto controllo
 
@@ -95,11 +95,11 @@ L'assistente IA è progettato per una PA: **informa, non decide**.
 
 === "Ufficio Sport"
 
-    ![Ufficio](screenshot/07_ufficio.png){ loading=lazy }
+    ![Ufficio](screenshot/07_backoffice.png){ loading=lazy }
 
     | Azione | Dove |
     |---|---|
-    | Vedere le prenotazioni dei prossimi 14 giorni con stato e IUV | `/ufficio` |
+    | Vedere le prenotazioni dei prossimi 14 giorni con stato e IUV | `/backoffice` |
     | Riservare uno slot (manutenzione, scuola, società) | *Riserva uno slot* |
     | Registrare un pagamento ricevuto allo sportello | *Conferma* sulla riga in attesa |
     | Annullare una prenotazione anche a meno di 24 ore | *Annulla* |

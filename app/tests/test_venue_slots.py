@@ -96,10 +96,10 @@ def test_app_shows_configured_venue(settings, clock, inference_client):
     home = c.get("/").text
     assert "Palestra comunale Pinco Pallino" in home and "Via Roma 1, 70100 Paese (BA)" in home
     assert "Comune di Paese" in home and "Gioia del Colle" not in home and "Tennis" not in home
-    info = c.get("/api/v1/spazio").json()
+    info = c.get("/api/v1/venue").json()
     assert info["comune"] == "Comune di Paese" and [a["codice"] for a in info["attivita"]] == ["calcetto"]
     # martedì chiuso, lunedì 17-19
-    days = {g["data"]: g for g in c.get("/api/v1/disponibilita?giorni=3").json()}
+    days = {g["data"]: g for g in c.get("/api/v1/availability?days=3").json()}
     assert days["2026-11-10"]["slot"] == [] and [s["ora"] for s in days["2026-11-09"]["slot"]] == ["17:00", "18:00", "19:00"]
     r = _book_and_pay(c, start="2026-11-11T18:00:00+01:00")
     assert "PAE-" in r.text
@@ -207,31 +207,31 @@ def test_database_constraints(service, mario):
 # ------------------------------------------------------------ interfaccia e API
 def test_home_shows_busy_slots_with_legend(app_client):
     _book_and_pay(app_client)
-    html = app_client.get("/?dal=2026-11-13").text
-    assert "20:00 · occupato" in html and "Legenda" in html and "1 impegnato" in html
+    html = app_client.get("/?from=2026-11-13").text
+    assert "20:00<span class=\"visually-hidden\">, occupato</span>" in html and "Legenda" in html and "1 impegnato" in html
 
 
 def test_office_sees_booking_code_in_grid(app_client):
     r = _book_and_pay(app_client)
     code = app_client.app.state.service.items()[0]["codice"]
-    html = app_client.get("/ufficio", auth=("u", "p")).text
+    html = app_client.get("/backoffice", auth=("u", "p")).text
     assert "Occupazione degli slot" in html and html.count(code) >= 2  # griglia + elenco
 
 
 def test_api_assistant_faq_and_office(app_client):
     _book_and_pay(app_client)
-    r = app_client.get("/api/v1/assistente", params={"testo": "calcetto venerdì sera alle 20"}).json()
+    r = app_client.get("/api/v1/assistant", params={"text": "calcetto venerdì sera alle 20"}).json()
     assert r["intento"]["data"] == "2026-11-13"
     hours_ = [p["ora"] for p in r["proposte"]]
     assert "20:00" not in hours_ and hours_[0] in ("19:00", "21:00")
-    assert r["proposte"][0]["link_prenotazione"].startswith("http://testserver/prenota?inizio=")
-    assert app_client.get("/api/v1/faq", params={"domanda": "posso annullare?"}).json()["trovata"] is True
-    assert app_client.get("/api/v1/ufficio/occupazione").status_code == 401
-    occ = app_client.get("/api/v1/ufficio/occupazione?dal=2026-11-13&giorni=1", auth=("u", "p")).json()
+    assert r["proposte"][0]["link_prenotazione"].startswith("http://testserver/book?start=")
+    assert app_client.get("/api/v1/faq", params={"question": "posso annullare?"}).json()["trovata"] is True
+    assert app_client.get("/api/v1/backoffice/occupancy").status_code == 401
+    occ = app_client.get("/api/v1/backoffice/occupancy?from=2026-11-13&days=1", auth=("u", "p")).json()
     code = next(s["codice"] for s in occ[0]["slot"] if s["ora"] == "20:00")
-    detail = app_client.get(f"/api/v1/ufficio/prenotazioni/{code}", auth=("u", "p")).json()
+    detail = app_client.get(f"/api/v1/backoffice/bookings/{code}", auth=("u", "p")).json()
     assert detail["stato"] == "CONFERMATA" and "cf" not in detail
-    assert app_client.get("/api/v1/ufficio/prenotazioni/GDC-XXXX-XXXX", auth=("u", "p")).status_code == 404
+    assert app_client.get("/api/v1/backoffice/bookings/GDC-XXXX-XXXX", auth=("u", "p")).status_code == 404
 
 
 def test_assistant_full_day_proposes_next_days(app_client):
@@ -239,12 +239,12 @@ def test_assistant_full_day_proposes_next_days(app_client):
     friday = service.availability(date(2026, 11, 13), 1)[0]
     for s in friday["slot"]:
         service.block(s["inizio"], "Torneo")
-    r = app_client.get("/api/v1/assistente", params={"testo": "calcetto venerdì sera alle 20"}).json()
+    r = app_client.get("/api/v1/assistant", params={"text": "calcetto venerdì sera alle 20"}).json()
     assert r["intento"]["data"] == "2026-11-13" and "giorni successivi" in r["messaggio"]
     assert [(p["data"], p["ora"]) for p in r["proposte"]][:3] == [
         ("2026-11-14", "20:00"), ("2026-11-14", "19:00"), ("2026-11-14", "21:00")]
     # giorno e fascia in cui il campo è chiuso: nessuna proposta, ma con una spiegazione
-    r = app_client.get("/api/v1/assistente", params={"testo": "calcetto domenica mattina"}).json()
+    r = app_client.get("/api/v1/assistant", params={"text": "calcetto domenica mattina"}).json()
     assert r["proposte"] == [] and "disponibilita" in r["messaggio"]
     # giorno con posti liberi: nessun messaggio
-    assert "messaggio" not in app_client.get("/api/v1/assistente", params={"testo": "calcetto sabato sera"}).json()
+    assert "messaggio" not in app_client.get("/api/v1/assistant", params={"text": "calcetto sabato sera"}).json()

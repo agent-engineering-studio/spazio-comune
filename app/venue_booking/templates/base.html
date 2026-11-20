@@ -21,10 +21,10 @@
         <div class="it-header-slim-right-zone">
           {% if user %}
             <span class="text-white small me-3">{{ user.name }} {{ user.last_name }}</span>
-            <a class="btn btn-primary btn-sm btn-icon" href="/mie-prenotazioni">Le mie prenotazioni</a>
+            <a class="btn btn-primary btn-sm btn-icon" href="/my-bookings">Le mie prenotazioni</a>
             <a class="btn btn-primary btn-sm ms-2" href="/auth/logout">Esci</a>
           {% else %}
-            <a class="btn btn-primary btn-icon btn-full" href="/auth/login?ritorno=%2Fmie-prenotazioni">
+            <a class="btn btn-primary btn-icon btn-full" href="/auth/login?return_url=%2Fmy-bookings">
               <span class="rounded-icon" aria-hidden="true"><svg class="icon icon-primary"><use href="/static/bootstrap-italia/dist/svg/sprites.svg#it-user"></use></svg></span>
               <span class="d-none d-lg-block">Accedi all'area personale</span>
             </a>

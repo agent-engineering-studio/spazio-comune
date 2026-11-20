@@ -29,10 +29,10 @@ Apri **http://localhost:8000**.
 | Pagina | Indirizzo | Accesso |
 |---|---|---|
 | Cittadino | `/` | libero; prenotazione con SPID/CIE (simulato) |
-| Le mie prenotazioni | `/mie-prenotazioni` | SPID/CIE (simulato) |
-| Ufficio Sport | `/ufficio` | Basic auth `UFFICIO_USER` / `UFFICIO_PASSWORD` |
-| Custode (smartphone) | `/custode` | Basic auth utente `custode` / `CUSTODE_PASSWORD` |
-| API e documentazione OpenAPI | `/api/docs` | libero; `/api/v1/ufficio/*` con le credenziali dell'ufficio |
+| Le mie prenotazioni | `/my-bookings` | SPID/CIE (simulato) |
+| Ufficio Sport | `/backoffice` | Basic auth `UFFICIO_USER` / `UFFICIO_PASSWORD` |
+| Custode (smartphone) | `/checkin` | Basic auth utente `custode` / `CUSTODE_PASSWORD` |
+| API e documentazione OpenAPI | `/api/docs` | libero; `/api/v1/backoffice/*` con le credenziali dell'ufficio |
 | Server MCP | `http://localhost:8090/mcp` | solo dalla macchina locale, vedi [Server MCP](mcp.md) |
 
 ### Profili e container
@@ -61,9 +61,9 @@ qualcosa da verificare. Venerdì alle 20 è già preso, per vedere l'assistente 
 !!! tip "Percorso di prova manuale"
     1. Su `:8001` scrivi all'assistente *calcetto venerdì sera alle 20* e scegli un orario proposto.
     2. *Entra con SPID* → *Paga con pagoPA* → *Paga*: ottieni il ticket con il QR.
-    3. Apri `/ufficio` (`ufficio.sport` / `cambiami`): la nuova prenotazione compare con il suo IUV.
-    4. Apri `/custode` (`custode` / `custode`), inserisci il codice della prenotazione delle 19:00 di oggi
-       (lo trovi in `/ufficio`): esito *Valida, ingresso registrato*. Riprova: *QR già utilizzato*.
+    3. Apri `/backoffice` (`ufficio.sport` / `cambiami`): la nuova prenotazione compare con il suo IUV.
+    4. Apri `/checkin` (`custode` / `custode`), inserisci il codice della prenotazione delle 19:00 di oggi
+       (lo trovi in `/backoffice`): esito *Valida, ingresso registrato*. Riprova: *QR già utilizzato*.
 
 ### Un luogo per installazione
 
