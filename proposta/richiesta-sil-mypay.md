@@ -60,7 +60,7 @@ Non cambiano l'intermediario pagoPA, il conto di accredito né il tipo dovuto: s
 ## 5. Cosa viene fornito dal progetto
 
 - Il codice è pubblico con licenza EUPL-1.2: <https://github.com/agent-engineering-studio/spazio-comune>
-- Il punto di integrazione è già isolato (`app/prenota/adapters/payments.py`, classe `MyPaySILGateway`):
+- Il punto di integrazione è già isolato (`app/venue_booking/adapters/payments.py`, classe `MyPaySILGateway`):
   oggi è uno scheletro e il pagamento è simulato; con endpoint, WSDL e credenziali di test si completa e si
   collauda senza toccare il resto dell'applicazione.
 - Dati inviati a MyPay per ogni dovuto: codice fiscale e nominativo del pagatore, email, importo, causale con
