@@ -116,6 +116,14 @@ Uno script installa tutto sulla macchina: PostgreSQL, Python con le librerie, i 
 notturno e, se si indica un nome a dominio, nginx con HTTPS. Si rilancia identico per aggiornare: dati e
 configurazione restano.
 
+In breve, cosa serve al Comune:
+
+- [ ] una macchina virtuale Linux (sotto: requisiti e impostazioni per VMware), con IP e nome a dominio;
+- [ ] le regole del firewall e la scelta del certificato HTTPS (Let's Encrypt gratuito o del Comune);
+- [ ] un client SPID/CIE dal gestore del gateway del Comune ([come ottenerlo](amministrazione.md#come-ottenere-le-credenziali-spid-e-cie));
+- [ ] l'abilitazione ai servizi SIL di MyPay, chiesta dal referente pagoPA ([richiesta pronta](https://github.com/agent-engineering-studio/spazio-comune/blob/main/proposta/richiesta-sil-mypay.md));
+- [ ] le credenziali consegnate attraverso un canale sicuro, non via email in chiaro.
+
 ### Requisiti minimi del server
 
 | Cosa | Minimo | Consigliato |
@@ -128,11 +136,35 @@ configurazione restano.
 | Rete in entrata | porta 8000 per una prova | 80 e 443 con un nome a dominio |
 | Accesso | utente con `sudo` | — |
 
-Non servono Docker né Node.js: l'interfaccia di amministrazione è già compilata nel repository.
+Non servono Docker né Node.js: l'interfaccia di amministrazione è già compilata nel repository. Il database
+PostgreSQL viene installato sulla stessa macchina; volendo si può usare un PostgreSQL gestito (impostando
+`DATABASE_URL`).
+
+### La macchina virtuale su VMware
+
+Impostazioni consigliate per una VM su VMware vSphere/ESXi (valgono, con nomi diversi, anche per Proxmox o Hyper-V):
+
+- **Sistema operativo ospite**: Ubuntu Server 24.04 LTS oppure Debian 12, 64 bit, installazione minima con SSH.
+- **Risorse**: 2 vCPU, 4 GB di RAM, disco da 20 GB in *thin provisioning*.
+- **Rete**: scheda VMXNET3, indirizzo IP statico nella rete dei servizi pubblicati (DMZ o equivalente).
+- **Strumenti**: `open-vm-tools` installato (`sudo apt install -y open-vm-tools`); ora sincronizzata via NTP,
+  fuso orario Europe/Rome (`sudo timedatectl set-timezone Europe/Rome`).
+- **Nome a dominio**: un record DNS, per esempio `prenota.comune.esempio.it`, che punti all'IP pubblico della VM
+  o al reverse proxy del Comune.
+- **Firewall in ingresso**: porte 80 e 443 da Internet; porta 22 (SSH) solo dalla rete di gestione.
+- **Firewall in uscita**: porta 443 verso i repository del sistema operativo, PyPI, Let's Encrypt (se usato), il
+  gateway SPID/CIE e MyPay.
+- **Backup**: snapshot prima dell'installazione e di ogni aggiornamento (da cancellare dopo la verifica: gli
+  snapshot non sono backup); backup della VM con il sistema in uso nel Comune; copia fuori dalla VM della cartella
+  `/var/backups/spazio-comune`, dove il servizio salva ogni notte il database.
+
+Se il Comune ha già un reverse proxy o i propri certificati, si installa con `--dominio` ma senza `--email-tls`
+e si mette il certificato su nginx o sul proxy.
 
 ### Installazione
 
 ```bash
+sudo apt install -y git          # su RHEL/Rocky/Alma: sudo dnf install -y git
 git clone https://github.com/agent-engineering-studio/spazio-comune.git && cd spazio-comune
 sudo ./deploy/install.sh                                                   # prova su http://<ip>:8000
 sudo ./deploy/install.sh --dominio prenota.comune.esempio.it               # dietro nginx (http)
@@ -142,8 +174,9 @@ sudo ./deploy/install.sh --dominio prenota.comune.esempio.it --email-tls ced@com
 Altre opzioni: `--porta N` (porta locale dell'app, predefinita 8000), `--workers N` (processi, predefiniti 2),
 `--senza-mcp`. L'aiuto completo si ottiene con `./deploy/install.sh --help`.
 
-Alla fine lo script stampa indirizzi e **credenziali iniziali** di amministratore, ufficio e custode. Il passo
-successivo è la [pagina di amministrazione](amministrazione.md).
+Alla fine lo script stampa indirizzi e **credenziali iniziali** di amministratore, ufficio e custode. Per HTTPS il
+nome a dominio deve già puntare all'indirizzo del server. Il passo successivo è la
+[pagina di amministrazione](amministrazione.md) su `https://<dominio>/admin`.
 
 ### Cosa installa e dove
 
@@ -173,6 +206,11 @@ sudo -u postgres pg_restore --clean -d spazio_comune /var/backups/spazio-comune/
 
 !!! warning "Backup fuori dal server"
     Il backup notturno resta sulla stessa macchina: copiarlo anche altrove (storage del Comune, backup della VM).
+
+!!! danger "Non cambiare `SECRET_KEY`"
+    La configurazione tecnica è in `/etc/spazio-comune/spazio-comune.env`, leggibile solo da root. `SECRET_KEY`
+    firma i QR già emessi e protegge le credenziali salvate: se cambia, i ticket e le credenziali cifrate non
+    valgono più.
 
 Per togliere tutto: `systemctl disable --now spazio-comune-{app,inference,mcp} spazio-comune-backup.timer`,
 poi cancellare `/opt/spazio-comune`, `/etc/spazio-comune` e i file `spazio-comune-*` in `/etc/systemd/system`.

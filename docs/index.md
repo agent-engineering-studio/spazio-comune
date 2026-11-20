@@ -22,6 +22,24 @@ Pilota proposto: campo coperto di via Benagiano, Comune di Gioia del Colle.
 
 *Un minuto di demo con dati fittizi: assistente IA, SPID, pagoPA, QR, ufficio e custode.*
 
+<div class="grid screens" markdown>
+
+![Calendario: libero, occupato, passato](screenshot/09_calendar.png){ loading=lazy }
+*Calendario: libero, occupato, passato*
+
+![Occupazione degli slot nel backoffice](screenshot/10_occupancy.png){ loading=lazy }
+*Backoffice dell'ufficio*
+
+![Amministrazione: orari del regolamento](screenshot/11_admin.png){ loading=lazy }
+*Amministrazione: orari del regolamento*
+
+![Ticket con QR e verifica del custode](screenshot/05_ticket.png){ loading=lazy }
+*Ticket con QR e verifica del custode*
+
+</div>
+
+Video completo: [orizzontale](demo/spazio-comune-demo.mp4) · [verticale per smartphone](demo/spazio-comune-demo-verticale.mp4).
+
 ## Scegli da dove partire
 
 <div class="grid cards" markdown>

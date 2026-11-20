@@ -78,6 +78,37 @@ Il servizio non parla direttamente con gli Identity Provider: si collega via **O
 accreditato, come l'area personale del portale del Comune, il proxy dell'intermediario regionale o un Keycloak/SATOSA
 con i plugin SPID e CIE.
 
+### Come ottenere le credenziali SPID e CIE
+
+Per collegarsi direttamente ai gestori dell'identità SPID (Poste, Aruba…) e al sistema CIE, Spazio Comune
+dovrebbe aderire esso stesso alla federazione SPID/CIE, con chiavi, certificati e una propria procedura. Si
+appoggia invece a un **gateway già accreditato**, che gli rilascia un *client id* e un *client secret* standard
+OpenID Connect. Le strade sono tre:
+
+1. **Il gateway che il Comune ha già (la più rapida).** Quasi tutti i Comuni offrono già SPID e CIE sul portale
+   dei servizi, spesso grazie all'avviso PNRR 1.4.4, tramite il fornitore del portale o un intermediario. Basta
+   chiedere a quel fornitore la **registrazione di un nuovo client OpenID Connect** con queste caratteristiche:
+    - redirect URI: `https://<dominio>/auth/oidc/callback`;
+    - flusso *authorization code* con PKCE (S256); autenticazione del client con secret (`client_secret_basic`,
+      oppure `client_secret_post` se il gateway lo richiede);
+    - scope `openid profile email`; attributi codice fiscale, nome, cognome, email;
+    - livello SPID 2 e accesso con CIE abilitato.
+
+    Il fornitore restituisce tre dati: **issuer** (indirizzo del gateway), **client id** e **client secret**.
+
+2. **Un gateway proprio del Comune**, per esempio Keycloak o SATOSA con i moduli SPID e CIE. Il Comune aderisce
+   come fornitore di servizi: per SPID presso AgID (guida "Diventa fornitore di servizi" su
+   [spid.gov.it](https://www.spid.gov.it/) e [pagina SPID di AgID](https://www.agid.gov.it/it/piattaforme/spid)),
+   per CIE sul [portale di federazione del Ministero dell'Interno](https://federazione.servizicie.interno.gov.it/docs/cie-manuale-operativo-docs)
+   (registrazione, richiesta di adesione, caricamento dei metadati). Richiede settimane e la gestione del gateway.
+3. **Un soggetto aggregatore** (Regione, Città metropolitana o fornitore accreditato) che offre il gateway come servizio.
+
+Regole tecniche: [OpenID Connect in SPID (AgID)](https://www.agid.gov.it/sites/agid/files/2024-06/linee_guida_openid_connect_in_spid.pdf)
+e [SPID/CIE OpenID Connect su docs.italia.it](https://docs.italia.it/projects/spid-cie-oidc-docs/downloads/epub/versione-corrente).
+Le procedure di adesione possono cambiare: verificarle sui portali ufficiali.
+
+### Collegare il gateway
+
 Le credenziali del gateway si configurano **solo nel file `.env`** (sulla VM `/etc/spazio-comune/spazio-comune.env`),
 non dalla pagina di amministrazione: così restano fuori dal database e sotto il controllo di chi gestisce il server.
 
@@ -104,6 +135,11 @@ Da quel momento l'accesso simulato non esiste più. Il flusso usa authorization 
 Il codice fiscale SPID nel formato `TINIT-…` viene normalizzato.
 
 ## pagoPA
+
+Il referente pagoPA dell'ente chiede a Regione Puglia l'abilitazione ai **servizi SIL di MyPay** (endpoint, WSDL,
+password SIL, codice del tipo dovuto). La richiesta, con la bozza da inviare, è in
+[`proposta/richiesta-sil-mypay.md`](https://github.com/agent-engineering-studio/spazio-comune/blob/main/proposta/richiesta-sil-mypay.md).
+Le credenziali ricevute si inseriscono in *Pagamenti pagoPA*.
 
 Con la simulazione il sito avvisa i cittadini che non c'è un addebito reale. Le credenziali di **MyPay SIL** si
 salvano già cifrate. Il collegamento effettivo richiede però di completare l'adapter `MyPaySILGateway` con il WSDL

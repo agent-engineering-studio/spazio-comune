@@ -230,7 +230,7 @@ La configurazione tecnica (database, chiavi, indirizzo) è in `/etc/spazio-comun
 da root. **Non cambiare `SECRET_KEY`**: firma i QR già emessi e protegge le credenziali salvate.
 
 → Dettagli: [Installazione](https://agentengineering.it/spazio-comune/installazione/) ·
-[Amministrazione](https://agentengineering.it/spazio-comune/admin/)
+[Amministrazione](https://agentengineering.it/spazio-comune/amministrazione/)
 
 ---
 
