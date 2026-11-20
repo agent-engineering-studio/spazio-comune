@@ -1,7 +1,7 @@
 """Spazio Comune: prenotazione di un luogo comunale (prototipo).
 
 Un'installazione gestisce un solo luogo: il file .env dà i valori iniziali, il
-back-office /amministrazione li cambia senza riavvio (impostazioni.py).
+back-office /admin li cambia senza riavvio (impostazioni.py).
 
 Applicazione FastAPI con interfaccia Bootstrap Italia 2.x, renderizzata lato
 server (funziona anche senza JavaScript, requisito utile per l'accessibilità).

@@ -4,7 +4,7 @@ Tabelle:
   - prenotazioni: una riga per prenotazione, con il numero (codice) e lo stato;
   - slot: una riga per ogni orario del calendario del luogo, con il numero
     della prenotazione che lo occupa (NULL se libero);
-  - impostazioni: le sezioni salvate dal back-office /amministrazione (JSONB,
+  - impostazioni: le sezioni salvate dal back-office /admin (JSONB,
     segreti cifrati), con impostazioni_registro per chi ha cambiato cosa e quando.
 La vista v_occupazione unisce slot e prenotazioni per una lettura immediata.
 

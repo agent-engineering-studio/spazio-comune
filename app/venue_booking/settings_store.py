@@ -1,4 +1,4 @@
-"""Impostazioni modificabili dal back-office /amministrazione.
+"""Impostazioni modificabili dal back-office /admin.
 
 Il file .env dà i valori iniziali e i parametri dell'infrastruttura (database,
 SECRET_KEY, BASE_URL); tutto ciò che decide il Comune si cambia dal back-office

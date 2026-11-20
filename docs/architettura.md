@@ -118,7 +118,7 @@ spazio-comune/
 ├── app/
 │   ├── venue_booking/
 │   │   ├── main.py           rotte cittadino, ufficio, custode, API REST
-│   │   ├── admin.py          API e pagina di amministrazione (/amministrazione)
+│   │   ├── admin.py          API e pagina di amministrazione (/admin)
 │   │   ├── settings_store.py impostazioni salvate nel database, segreti cifrati, ricarica a caldo
 │   │   ├── booking.py        slot, prenotazioni, pagamenti, check-in
 │   │   ├── catalog.py        il luogo (Venue), attività, tariffe, calendario

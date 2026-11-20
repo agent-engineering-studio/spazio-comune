@@ -1,4 +1,4 @@
-"""Back-office /amministrazione: impostazioni salvate nel database, valide subito, segreti cifrati."""
+"""Back-office /admin: impostazioni salvate nel database, valide subito, segreti cifrati."""
 import base64
 import json
 import re
@@ -17,11 +17,14 @@ from venue_booking.main import create_app
 from test_web import _book_and_pay
 
 ADMIN = ("admin", "admin-pw")
-API = "/api/v1/amministrazione"
+API = "/api/v1/admin"
+# sezione nell'URL (inglese) -> chiave dei dati restituiti dall'API
+SLUG = {"luogo": "venue", "attivita": "activities", "orari": "schedule", "pagamenti": "payments",
+        "identita": "identity", "accessi": "access"}
 
 
 def _log_in(c, user="admin", password="admin-pw"):
-    r = c.post(f"{API}/accesso", json={"utente": user, "password": password})
+    r = c.post(f"{API}/login", json={"utente": user, "password": password})
     assert r.status_code == 200, r.text
     c.headers["X-CSRF-Token"] = r.json()["csrf"]
     return r.json()
@@ -30,7 +33,7 @@ def _log_in(c, user="admin", password="admin-pw"):
 def _state(c):
     if "X-CSRF-Token" not in c.headers:
         _log_in(c)
-    r = c.get(f"{API}/impostazioni")
+    r = c.get(f"{API}/settings")
     assert r.status_code == 200, r.text
     return r.json()
 
@@ -38,43 +41,44 @@ def _state(c):
 def _save(c, section, **changes):
     """Salva una sezione partendo dai valori attuali, come fa l'interfaccia."""
     data = {**_state(c)[section], **changes}
-    return c.put(f"{API}/impostazioni/{section}", json=data)
+    return c.put(f"{API}/settings/{SLUG[section]}", json=data)
 
 
 def _save_schedule(c, week=None, **changes):
     o = _state(c)["orari"]
     o = {**o, "settimana": {**o["settimana"], **(week or {})}, **changes}
-    return c.put(f"{API}/impostazioni/orari", json=o)
+    return c.put(f"{API}/settings/schedule", json=o)
 
 
 # ------------------------------------------------------------ accesso
 def test_react_ui_served_by_app(app_client):
-    r = app_client.get("/amministrazione/orari")
+    assert app_client.get("/amministrazione/orari", follow_redirects=False).headers["location"] == "/admin/schedule"
+    r = app_client.get("/admin/schedule")
     assert r.status_code == 200 and '<div id="root">' in r.text and "/static/admin/assets/" in r.text
     asset = re.search(r'src="(/static/admin/assets/[^"]+\.js)"', r.text).group(1)
     assert app_client.get(asset).status_code == 200
 
 
 def test_admin_requires_administrator(app_client):
-    assert app_client.get(f"{API}/impostazioni").status_code == 401
-    assert app_client.post(f"{API}/accesso", json={"utente": "u", "password": "p"}).status_code == 401   # l'ufficio non basta
-    assert app_client.post(f"{API}/accesso", json={"utente": "admin", "password": "no"}).status_code == 401
+    assert app_client.get(f"{API}/settings").status_code == 401
+    assert app_client.post(f"{API}/login", json={"utente": "u", "password": "p"}).status_code == 401   # l'ufficio non basta
+    assert app_client.post(f"{API}/login", json={"utente": "admin", "password": "no"}).status_code == 401
     _log_in(app_client)
-    assert app_client.get(f"{API}/sessione").json()["utente"] == "admin"
-    app_client.post(f"{API}/uscita")
-    assert app_client.get(f"{API}/impostazioni").status_code == 401
+    assert app_client.get(f"{API}/session").json()["utente"] == "admin"
+    app_client.post(f"{API}/logout")
+    assert app_client.get(f"{API}/settings").status_code == 401
 
 
 def test_too_many_attempts_block_login(app_client):
     for _ in range(10):
-        app_client.post(f"{API}/accesso", json={"utente": "admin", "password": "no"})
-    assert app_client.post(f"{API}/accesso", json={"utente": "admin", "password": "admin-pw"}).status_code == 429
+        app_client.post(f"{API}/login", json={"utente": "admin", "password": "no"})
+    assert app_client.post(f"{API}/login", json={"utente": "admin", "password": "admin-pw"}).status_code == 429
 
 
 def test_admin_closed_without_admin_password(settings, clock, inference_client):
     settings.admin_password = None
     c = TestClient(create_app(settings, now=clock, assistant=AIAssistant("http://x", client=inference_client)))
-    r = c.post(f"{API}/accesso", json={"utente": "admin", "password": "admin-pw"})
+    r = c.post(f"{API}/login", json={"utente": "admin", "password": "admin-pw"})
     assert r.status_code == 403 and "ADMIN_PASSWORD" in r.text
     c.app.state.db.close()
 
@@ -82,9 +86,9 @@ def test_admin_closed_without_admin_password(settings, clock, inference_client):
 def test_csrf_required_in_admin(app_client):
     _log_in(app_client)
     token = app_client.headers.pop("X-CSRF-Token")
-    assert app_client.put(f"{API}/impostazioni/luogo", json={"nome": "X"}).status_code == 403
+    assert app_client.put(f"{API}/settings/venue", json={"nome": "X"}).status_code == 403
     app_client.headers["X-CSRF-Token"] = token + "x"
-    assert app_client.put(f"{API}/impostazioni/luogo", json={"nome": "X"}).status_code == 403
+    assert app_client.put(f"{API}/settings/venue", json={"nome": "X"}).status_code == 403
 
 
 def test_secrets_never_returned_to_browser(app_client):
@@ -100,11 +104,11 @@ def test_saved_venue_applies_immediately_and_is_logged(app_client):
     assert r.json()["luogo"]["prefisso_codice"] == "PDS" and r.json()["salvate"]["luogo"]["aggiornata_da"] == "admin"
     assert "Palazzetto dello sport" in app_client.get("/").text
     assert app_client.get("/api/v1/spazio").json()["nome"] == "Palazzetto dello sport"
-    audit_log = app_client.get(f"{API}/registro").json()
+    audit_log = app_client.get(f"{API}/audit-log").json()
     assert audit_log[0]["sezione"] == "luogo" and audit_log[0]["utente"] == "admin"
     assert "PDS-" in _book_and_pay(app_client).text
     # si torna al .env
-    assert app_client.post(f"{API}/impostazioni/luogo/ripristina").status_code == 200
+    assert app_client.post(f"{API}/settings/venue/restore").status_code == 200
     assert "Campo comunale coperto" in app_client.get("/").text
 
 
@@ -173,7 +177,7 @@ def test_fees_and_new_activity(app_client):
     items[0]["tariffa_cent"] = 4550
     items[1]["attiva"] = False
     items.append({"codice": "pallavolo", "nome": "Pallavolo", "tariffa_cent": 3000, "giocatori": "12", "preparazione": "", "attiva": True})
-    r = app_client.put(f"{API}/impostazioni/attivita", json={"fonte_tariffe": "D.G.C. n. 1/2027", "elenco": items})
+    r = app_client.put(f"{API}/settings/activities", json={"fonte_tariffe": "D.G.C. n. 1/2027", "elenco": items})
     assert r.status_code == 200, r.text
     info = app_client.get("/api/v1/spazio").json()
     fees = {a["codice"]: a["tariffa_cent"] for a in info["attivita"]}
@@ -188,12 +192,12 @@ def test_fees_and_new_activity(app_client):
 
 def test_existing_activities_cannot_be_deleted(app_client):
     a = _state(app_client)["attivita"]
-    r = app_client.put(f"{API}/impostazioni/attivita", json={**a, "elenco": a["elenco"][:1]})
+    r = app_client.put(f"{API}/settings/activities", json={**a, "elenco": a["elenco"][:1]})
     assert r.status_code == 422 and "non si eliminano" in r.json()["errore"]
     disabled = [{**x, "attiva": False} for x in a["elenco"]]
-    r = app_client.put(f"{API}/impostazioni/attivita", json={**a, "elenco": disabled})
+    r = app_client.put(f"{API}/settings/activities", json={**a, "elenco": disabled})
     assert r.status_code == 422 and "almeno una" in r.json()["errore"]
-    r = app_client.put(f"{API}/impostazioni/attivita", json={**a, "elenco": a["elenco"] + [
+    r = app_client.put(f"{API}/settings/activities", json={**a, "elenco": a["elenco"] + [
         {"codice": "Blocco!", "nome": "x", "tariffa_cent": 1, "attiva": True}]})
     assert r.status_code == 422 and "codice non valido" in r.json()["errore"]
 
@@ -206,8 +210,8 @@ def test_pagopa_credentials_encrypted_never_shown(app_client):
     assert "Segreto-SIL-123" not in r.text and r.json()["pagamenti"]["mypay_password"] is True
     raw = json.dumps(app_client.app.state.db.query("SELECT valori FROM impostazioni WHERE sezione='pagamenti'"))
     assert "Segreto-SIL-123" not in raw and "enc:v1:" in raw
-    assert "Segreto-SIL-123" not in app_client.get(f"{API}/impostazioni").text
-    assert "Segreto-SIL-123" not in app_client.get(f"{API}/registro").text
+    assert "Segreto-SIL-123" not in app_client.get(f"{API}/settings").text
+    assert "Segreto-SIL-123" not in app_client.get(f"{API}/audit-log").text
     cfg = app_client.app.state.config
     assert cfg.payments["mypay_password"] == "Segreto-SIL-123"
     # campo vuoto: la password resta
@@ -240,7 +244,7 @@ def test_secrets_unreadable_with_another_key():
 # ------------------------------------------------------------ accessi
 def _staff_access(c, **changes):
     a = _state(c)["accessi"]
-    return c.put(f"{API}/impostazioni/accessi", json={"admin_user": a["admin_user"], "ufficio_user": a["ufficio_user"], **changes})
+    return c.put(f"{API}/settings/access", json={"admin_user": a["admin_user"], "ufficio_user": a["ufficio_user"], **changes})
 
 
 def test_staff_passwords(app_client):
@@ -258,9 +262,9 @@ def test_staff_passwords(app_client):
 
 def test_new_admin_password(app_client, settings, clock, inference_client):
     assert _staff_access(app_client, admin_password="nuova-password-admin").status_code == 200
-    assert app_client.get(f"{API}/impostazioni").status_code == 200       # la sessione di chi l'ha cambiata resta
+    assert app_client.get(f"{API}/settings").status_code == 200       # la sessione di chi l'ha cambiata resta
     other = TestClient(app_client.app)
-    assert other.post(f"{API}/accesso", json={"utente": "admin", "password": "admin-pw"}).status_code == 401
+    assert other.post(f"{API}/login", json={"utente": "admin", "password": "admin-pw"}).status_code == 401
     _log_in(other, password="nuova-password-admin")
 
 
@@ -378,10 +382,10 @@ def test_identity_read_only_in_admin(oidc_client, gateway):
     state = _state(c)["identita"]
     assert state["backend"] == "oidc" and state["oidc_issuer"] == ISSUER and state["oidc_client_secret"] is True
     assert state["redirect_uri"] == "https://prenota.comune.example.it/auth/oidc/callback"
-    assert "client-secret-123" not in c.get(f"{API}/impostazioni").text
-    r = c.put(f"{API}/impostazioni/identita", json={"backend": "mock"})
+    assert "client-secret-123" not in c.get(f"{API}/settings").text
+    r = c.put(f"{API}/settings/identity", json={"backend": "mock"})
     assert r.status_code == 409 and ".env" in r.json()["errore"]
-    r = c.post(f"{API}/identita/verifica")
+    r = c.post(f"{API}/identity/verify")
     assert r.status_code == 200 and r.json()["token_endpoint"] == f"{ISSUER}/token"
 
 
@@ -424,7 +428,7 @@ def test_logo_in_header(app_client):
     logo = app_client.get(url)
     assert logo.content == PNG and logo.headers["content-type"] == "image/png"
     assert logo.headers["x-content-type-options"] == "nosniff"
-    assert app_client.get(f"{API}/registro").json()[0]["sezione"] == "logo"
+    assert app_client.get(f"{API}/audit-log").json()[0]["sezione"] == "logo"
     # nome del Comune e del luogo dal back-office nell'header
     _save(app_client, "luogo", comune="Comune di Paese", nome="Palestra Rossi")
     home = app_client.get("/").text
@@ -453,7 +457,7 @@ EVENING = {"nome": "Serale con illuminazione", "dalle": "19:00", "alle": "24:00"
 
 def _save_fee_bands(c, bands):
     act = _state(c)["attivita"]
-    return c.put(f"{API}/impostazioni/attivita", json={**act, "fasce_tariffarie": bands})
+    return c.put(f"{API}/settings/activities", json={**act, "fasce_tariffarie": bands})
 
 
 def test_fee_bands_set_the_payment_amount(app_client):

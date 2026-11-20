@@ -1,20 +1,23 @@
-"""Back-office delle impostazioni: interfaccia React (Vite) su /amministrazione e API JSON.
+"""Back-office delle impostazioni: interfaccia React (Vite) su /admin e API JSON.
 
 L'interfaccia è una pagina statica compilata con Vite (cartella admin/ del
-repository, build in static/amministrazione/): la serve questa stessa app, quindi
+repository, build in static/admin/): la serve questa stessa app, quindi
 sulla VM non c'è un servizio in più né Node.js.
 
 API (solo amministratore, sessione con cookie firmato + header X-CSRF-Token):
-  POST /api/v1/amministrazione/accesso            {utente, password} -> {utente, csrf}
-  POST /api/v1/amministrazione/uscita
-  GET  /api/v1/amministrazione/sessione
-  GET  /api/v1/amministrazione/impostazioni        tutte le sezioni (segreti: solo impostato sì/no)
-  PUT  /api/v1/amministrazione/impostazioni/{sez}  salva e valida una sezione (non identita: SPID/CIE sta nel .env)
-  POST /api/v1/amministrazione/impostazioni/{sez}/ripristina   torna al .env
-  POST /api/v1/amministrazione/identita/verifica   legge la discovery OIDC del gateway
-  GET  /api/v1/amministrazione/registro            chi ha cambiato cosa e quando
-  PUT  /api/v1/amministrazione/logo                logo dell'ente per l'header (PNG, JPEG o WebP, max 512 KB)
-  DELETE /api/v1/amministrazione/logo
+  POST /api/v1/admin/login                  {utente, password} -> {utente, csrf}
+  POST /api/v1/admin/logout
+  GET  /api/v1/admin/session
+  GET  /api/v1/admin/settings               tutte le sezioni (segreti: solo impostato sì/no)
+  PUT  /api/v1/admin/settings/{section}     salva e valida: venue, activities, schedule, payments, access
+                                            (identity no: SPID/CIE sta nel .env)
+  POST /api/v1/admin/settings/{section}/restore   torna al .env
+  POST /api/v1/admin/identity/verify        legge la discovery OIDC del gateway
+  GET  /api/v1/admin/audit-log              chi ha cambiato cosa e quando
+  PUT  /api/v1/admin/logo                   logo dell'ente per l'header (PNG, JPEG o WebP, max 512 KB)
+  DELETE /api/v1/admin/logo
+
+I vecchi indirizzi /amministrazione/... rimandano a /admin/... (301).
   GET  /logo                                       il logo, pubblico (header del sito)
 
 I segreti non tornano mai al browser: un segreto vuoto o assente conserva il
@@ -32,7 +35,7 @@ from pathlib import Path
 from typing import Callable
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 from .adapters.identity import IdentityError, OIDCIdentity
@@ -43,6 +46,9 @@ from .settings_store import IDENTITY_BACKENDS, PAYMENT_BACKENDS, SECTIONS, Runti
 log = logging.getLogger("venue_booking.admin")
 SPA = Path(__file__).parent / "static" / "admin" / "index.html"
 MIN_PASSWORD = 12
+# sezione nell'URL (inglese) -> chiave della sezione salvata nel database
+URL_SECTIONS = {"venue": "luogo", "activities": "attivita", "schedule": "orari", "payments": "pagamenti",
+                "identity": "identita", "access": "accessi", "audit-log": "registro"}
 ENV_ONLY = ("Il gateway SPID/CIE si configura nel file .env (IDENTITY_BACKEND e OIDC_*, compreso OIDC_REDIRECT_URI), "
             "poi si riavvia il servizio")
 MAX_IDLE = 30 * 60          # secondi senza richieste prima di dover rientrare
@@ -193,7 +199,14 @@ def register(app: FastAPI, *, cfg: RuntimeConfig, service: BookingService,
 
     # ---------------------------------------------------------------- interfaccia
     @app.get("/amministrazione", include_in_schema=False)
-    @app.get("/amministrazione/{_percorso:path}", include_in_schema=False)
+    @app.get("/amministrazione/{_path:path}", include_in_schema=False)
+    def old_admin_url(_path: str = ""):
+        """Indirizzo italiano delle prime versioni: si rimanda a /admin, con la sezione equivalente."""
+        target = {v: k for k, v in URL_SECTIONS.items()}.get(_path.strip("/"), "")
+        return RedirectResponse(f"/admin/{target}" if target else "/admin", status_code=301)
+
+    @app.get("/admin", include_in_schema=False)
+    @app.get("/admin/{_path:path}", include_in_schema=False)
     def admin_ui(_path: str = ""):
         if not SPA.exists():
             return HTMLResponse("<h1>Interfaccia di amministrazione non compilata</h1>"
@@ -201,7 +214,7 @@ def register(app: FastAPI, *, cfg: RuntimeConfig, service: BookingService,
         return FileResponse(SPA, headers={"Cache-Control": "no-store", "X-Frame-Options": "DENY"})
 
     # ---------------------------------------------------------------- sessione
-    @app.post("/api/v1/amministrazione/accesso", tags=["amministrazione"])
+    @app.post("/api/v1/admin/login", tags=["admin"])
     async def log_in(request: Request):
         if not cfg.admin_enabled:
             raise HTTPException(403, "Amministrazione disattivata: impostare ADMIN_PASSWORD nel file .env")
@@ -225,23 +238,24 @@ def register(app: FastAPI, *, cfg: RuntimeConfig, service: BookingService,
                                admin_last_seen=int(now))
         return {"utente": user, "csrf": request.session["admin_csrf"]}
 
-    @app.post("/api/v1/amministrazione/uscita", tags=["amministrazione"])
+    @app.post("/api/v1/admin/logout", tags=["admin"])
     def log_out(request: Request):
         for k in ("admin", "admin_csrf", "admin_fingerprint", "admin_last_seen"):
             request.session.pop(k, None)
         return {"ok": True}
 
-    @app.get("/api/v1/amministrazione/sessione", tags=["amministrazione"])
+    @app.get("/api/v1/admin/session", tags=["admin"])
     def session_info(request: Request, user: str = Depends(admin)):
         return {"utente": user, "csrf": request.session["admin_csrf"]}
 
     # ---------------------------------------------------------------- impostazioni
-    @app.get("/api/v1/amministrazione/impostazioni", tags=["amministrazione"])
+    @app.get("/api/v1/admin/settings", tags=["admin"])
     def read_settings(_: str = Depends(admin)):
         return state()
 
-    @app.put("/api/v1/amministrazione/impostazioni/{section}", tags=["amministrazione"])
+    @app.put("/api/v1/admin/settings/{section}", tags=["admin"])
     async def save(request: Request, section: str, user: str = Depends(admin)):
+        section = URL_SECTIONS.get(section, "")
         if section not in SECTIONS:
             raise HTTPException(404, "Sezione sconosciuta")
         if section == "identita":
@@ -265,8 +279,9 @@ def register(app: FastAPI, *, cfg: RuntimeConfig, service: BookingService,
             request.session.update(admin=cfg.access["admin_user"], admin_fingerprint=fingerprint())
         return {**state(), "campi_modificati": changed}
 
-    @app.post("/api/v1/amministrazione/impostazioni/{section}/ripristina", tags=["amministrazione"])
+    @app.post("/api/v1/admin/settings/{section}/restore", tags=["admin"])
     async def restore(request: Request, section: str, user: str = Depends(admin)):
+        section = URL_SECTIONS.get(section, "")
         if section not in SECTIONS:
             raise HTTPException(404, "Sezione sconosciuta")
         if section == "identita":
@@ -278,7 +293,7 @@ def register(app: FastAPI, *, cfg: RuntimeConfig, service: BookingService,
             request.session.update(admin=cfg.access["admin_user"], admin_fingerprint=fingerprint())
         return state()
 
-    @app.post("/api/v1/amministrazione/identita/verifica", tags=["amministrazione"])
+    @app.post("/api/v1/admin/identity/verify", tags=["admin"])
     async def verify_oidc(_: str = Depends(admin)):
         client = oidc() or (OIDCIdentity(cfg.identity, cfg.identity["redirect_uri"])
                             if cfg.identity.get("oidc_issuer") else None)
@@ -291,12 +306,12 @@ def register(app: FastAPI, *, cfg: RuntimeConfig, service: BookingService,
         return {k: meta.get(k) for k in ("issuer", "authorization_endpoint", "token_endpoint", "userinfo_endpoint",
                                          "scopes_supported", "acr_values_supported", "claims_supported")}
 
-    @app.get("/api/v1/amministrazione/registro", tags=["amministrazione"])
+    @app.get("/api/v1/admin/audit-log", tags=["admin"])
     def audit_log(_: str = Depends(admin)):
         return cfg.archive.audit_log()
 
     # ---------------------------------------------------------------- logo
-    @app.put("/api/v1/amministrazione/logo", tags=["amministrazione"])
+    @app.put("/api/v1/admin/logo", tags=["admin"])
     async def upload_logo(request: Request, user: str = Depends(admin)):
         data = await request.body()
         if not data:
@@ -310,7 +325,7 @@ def register(app: FastAPI, *, cfg: RuntimeConfig, service: BookingService,
         await run_in_threadpool(cfg.save_logo, kind, data, user, service.now())
         return state()
 
-    @app.delete("/api/v1/amministrazione/logo", tags=["amministrazione"])
+    @app.delete("/api/v1/admin/logo", tags=["admin"])
     async def delete_logo(user: str = Depends(admin)):
         await run_in_threadpool(cfg.save_logo, None, None, user, service.now())
         return state()

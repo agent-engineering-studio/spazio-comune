@@ -12,18 +12,18 @@ import AuditLog from "./sections/AuditLog.jsx";
 
 // Le chiavi sono sia segmenti dell'URL della pagina sia dell'API: restano in italiano.
 export const SECTIONS = {
-  luogo: { title: "Luogo, Comune e logo", Component: Venue },
-  attivita: { title: "Attività e tariffe", Component: Activities },
-  orari: { title: "Orari e disponibilità", Component: Schedule },
-  pagamenti: { title: "Pagamenti pagoPA", Component: Payments },
-  identita: { title: "Accesso SPID/CIE", Component: Identity },
-  accessi: { title: "Accessi del personale", Component: StaffAccess },
-  registro: { title: "Registro delle modifiche", Component: AuditLog },
+  venue: { dataKey: "luogo", title: "Luogo, Comune e logo", Component: Venue },
+  activities: { dataKey: "attivita", title: "Attività e tariffe", Component: Activities },
+  schedule: { dataKey: "orari", title: "Orari e disponibilità", Component: Schedule },
+  payments: { dataKey: "pagamenti", title: "Pagamenti pagoPA", Component: Payments },
+  identity: { dataKey: "identita", title: "Accesso SPID/CIE", Component: Identity },
+  access: { dataKey: "accessi", title: "Accessi del personale", Component: StaffAccess },
+  "audit-log": { dataKey: null, title: "Registro delle modifiche", Component: AuditLog },
 };
 
 function sectionFromUrl() {
-  const s = window.location.pathname.replace(/^\/amministrazione\/?/, "").split("/")[0];
-  return SECTIONS[s] ? s : "luogo";
+  const s = window.location.pathname.replace(/^\/admin\/?/, "").split("/")[0];
+  return SECTIONS[s] ? s : "venue";
 }
 
 export default function App() {
@@ -57,7 +57,7 @@ export default function App() {
 
   const navigate = (s) => {
     if (dirty && !window.confirm("Ci sono modifiche non salvate. Uscire comunque dalla sezione?")) return;
-    window.history.pushState({}, "", `/amministrazione/${s}`);
+    window.history.pushState({}, "", `/admin/${s}`);
     setSection(s); setOutcome(null); setDirty(false);
     document.getElementById("main-content")?.focus();
   };
@@ -84,8 +84,8 @@ export default function App() {
   if (user === undefined) return <p className="container my-5">Caricamento…</p>;
   if (user === null) return <Login onLoggedIn={setUser} />;
 
-  const { title, Component } = SECTIONS[section];
-  const saved = data?.salvate?.[section];
+  const { title, Component, dataKey } = SECTIONS[section];
+  const saved = dataKey ? data?.salvate?.[dataKey] : null;
   return (
     <>
       <header className="it-header-wrapper">
@@ -100,7 +100,7 @@ export default function App() {
           </div></div>
         </div>
         <div className="it-nav-wrapper"><div className="it-header-center-wrapper"><div className="container">
-          <div className="it-header-center-content-wrapper"><div className="it-brand-wrapper"><a href="/amministrazione">
+          <div className="it-header-center-content-wrapper"><div className="it-brand-wrapper"><a href="/admin">
             {data?.meta.logo && <img className="icon venue-logo" src={data.meta.logo} alt="" />}
             <div className="it-brand-text">
               <div className="it-brand-title">{data?.meta.comune || "Spazio Comune"}</div>
@@ -116,10 +116,10 @@ export default function App() {
             <ul className="list-group">
               {Object.entries(SECTIONS).map(([key, s]) => (
                 <li className="list-group-item p-0" key={key}>
-                  <a className="d-block px-3 py-2" href={`/amministrazione/${key}`} aria-current={key === section ? "page" : undefined}
+                  <a className="d-block px-3 py-2" href={`/admin/${key}`} aria-current={key === section ? "page" : undefined}
                      onClick={(e) => { e.preventDefault(); navigate(key); }}>
                     {s.title}
-                    {data?.salvate?.[key] && <span className="badge bg-primary ms-2" title="Salvata dal back-office">personalizzata</span>}
+                    {s.dataKey && data?.salvate?.[s.dataKey] && <span className="badge bg-primary ms-2" title="Salvata dal back-office">personalizzata</span>}
                   </a>
                 </li>
               ))}
@@ -133,11 +133,11 @@ export default function App() {
             {outcome && <Alert type={outcome.type} title={outcome.type === "danger" ? "Non salvato." : null}>{outcome.text}</Alert>}
             {saved && <p className="small text-muted">Ultima modifica: {formatDateTime(saved.aggiornata_il)} da {saved.aggiornata_da}.</p>}
             {!data ? <p>Caricamento…</p> : (
-              <Component key={`${section}-${data.salvate?.[section]?.aggiornata_il || "env"}`} data={data} meta={data.meta}
+              <Component key={`${section}-${(dataKey && data.salvate?.[dataKey]?.aggiornata_il) || "env"}`} data={data} meta={data.meta}
                          save={(v) => save(section, v)} onChange={() => setDirty(true)} handleError={handleError}
                          updateData={(updated, text) => { setData(updated); setOutcome({ type: "success", text }); }} />
             )}
-            {saved && section !== "registro" && (
+            {saved && section !== "audit-log" && (
               <div className="mt-4 border-top pt-3">
                 <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => restore(section)}>
                   Torna ai valori del file .env

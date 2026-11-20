@@ -1,7 +1,7 @@
 """Il luogo prenotabile, le attività, le tariffe e il calendario.
 
 Ogni installazione gestisce **un solo luogo**. Il file .env (SPAZIO_*, COMUNE_*)
-dà i valori iniziali; il back-office /amministrazione li sostituisce senza
+dà i valori iniziali; il back-office /admin li sostituisce senza
 riavvio (vedi impostazioni.py). Un Comune con più luoghi installa una copia del
 repository per ciascuno.
 

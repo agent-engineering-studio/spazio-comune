@@ -5,7 +5,7 @@ partendo da una frase.** Open source (EUPL-1.2), riusabile da qualsiasi Comune.
 Pilota proposto: campo coperto di via Benagiano, Comune di Gioia del Colle.
 
 **Un'installazione = un luogo.** Nome, logo, orari, tariffe (anche per fascia oraria) e pagoPA si impostano da una
-pagina di **amministrazione** (`/amministrazione`), senza toccare file né riavviare. Il collegamento SPID/CIE si
+pagina di **amministrazione** (`/admin`), senza toccare file né riavviare. Il collegamento SPID/CIE si
 configura nel file `.env`. Un Comune con più luoghi installa una
 copia per ciascuno: ogni luogo ha il suo indirizzo web, il suo database e il suo ufficio di riferimento.
 
@@ -71,6 +71,14 @@ valutazione ed estensione.
 Per mettere il servizio in esercizio su un server del Comune (o di un fornitore cloud qualificato) **non serve
 Docker**: uno script installa tutto, crea le password e avvia il servizio. Lo si può rilanciare per aggiornare.
 
+In breve, cosa serve al Comune:
+
+- [ ] una macchina virtuale Linux (sotto: requisiti e impostazioni per VMware), con IP e nome a dominio;
+- [ ] le regole del firewall e la scelta del certificato HTTPS (Let's Encrypt gratuito o del Comune);
+- [ ] un client SPID/CIE dal gestore del gateway del Comune ([come ottenerlo](#come-ottenere-le-credenziali-spid-e-cie));
+- [ ] l'abilitazione ai servizi SIL di MyPay, chiesta dal referente pagoPA ([richiesta pronta](proposta/richiesta-sil-mypay.md));
+- [ ] le credenziali consegnate attraverso un canale sicuro, non via email in chiaro.
+
 ### Requisiti minimi del server Linux
 
 | Cosa | Minimo | Consigliato |
@@ -86,6 +94,27 @@ Docker**: uno script installa tutto, crea le password e avvia il servizio. Lo si
 Non servono Node.js né Docker. Il database PostgreSQL viene installato sulla stessa macchina; volendo si può usare
 un PostgreSQL gestito (impostando `DATABASE_URL`).
 
+### La macchina virtuale su VMware
+
+Impostazioni consigliate per una VM su VMware vSphere/ESXi (valgono, con nomi diversi, anche per Proxmox o Hyper-V):
+
+- **Sistema operativo ospite**: Ubuntu Server 24.04 LTS oppure Debian 12, 64 bit, installazione minima con SSH.
+- **Risorse**: 2 vCPU, 4 GB di RAM, disco da 20 GB in *thin provisioning*.
+- **Rete**: scheda VMXNET3, indirizzo IP statico nella rete dei servizi pubblicati (DMZ o equivalente).
+- **Strumenti**: `open-vm-tools` installato (`sudo apt install -y open-vm-tools`); ora sincronizzata via NTP,
+  fuso orario Europe/Rome (`sudo timedatectl set-timezone Europe/Rome`).
+- **Nome a dominio**: un record DNS, per esempio `prenota.comune.esempio.it`, che punti all'IP pubblico della VM
+  o al reverse proxy del Comune.
+- **Firewall in ingresso**: porte 80 e 443 da Internet; porta 22 (SSH) solo dalla rete di gestione.
+- **Firewall in uscita**: porta 443 verso i repository del sistema operativo, PyPI, Let's Encrypt (se usato), il
+  gateway SPID/CIE e MyPay.
+- **Backup**: snapshot prima dell'installazione e di ogni aggiornamento (da cancellare dopo la verifica: gli
+  snapshot non sono backup); backup della VM con il sistema in uso nel Comune; copia fuori dalla VM della cartella
+  `/var/backups/spazio-comune`, dove il servizio salva ogni notte il database.
+
+Se il Comune ha già un reverse proxy o i propri certificati, si installa con `--dominio` ma senza `--email-tls`
+e si mette il certificato su nginx o sul proxy.
+
 ### Installazione in 3 passi
 
 ```bash
@@ -99,7 +128,7 @@ sudo ./deploy/install.sh                                                  # prov
 sudo ./deploy/install.sh --dominio prenota.comune.esempio.it              # con nome a dominio (http)
 sudo ./deploy/install.sh --dominio prenota.comune.esempio.it --email-tls ced@comune.esempio.it   # con HTTPS gratuito
 
-# 3. aprire l'indirizzo mostrato alla fine, sezione /amministrazione
+# 3. aprire l'indirizzo mostrato alla fine, sezione /admin
 ```
 
 Alla fine lo script stampa l'indirizzo del servizio e le **credenziali iniziali** (amministratore, ufficio,
@@ -107,7 +136,7 @@ custode). Per HTTPS il nome a dominio deve già puntare all'indirizzo del server
 
 ### Dopo l'installazione: la pagina di amministrazione
 
-Si entra su `https://<dominio>/amministrazione` con le credenziali dell'amministratore e si compila, in ordine:
+Si entra su `https://<dominio>/admin` con le credenziali dell'amministratore e si compila, in ordine:
 
 1. **Luogo, Comune e logo**: nome del Comune e del luogo e logo, che compaiono nell'intestazione del sito.
 2. **Attività e tariffe**: cosa si può prenotare e quanto costa, con la delibera che approva le tariffe, e le
@@ -119,6 +148,34 @@ Si entra su `https://<dominio>/amministrazione` con le credenziali dell'amminist
 5. **Accessi del personale**: cambiare subito le password iniziali.
 
 Ogni modifica vale subito ed è registrata in **Registro delle modifiche** (chi, quando, cosa; mai le password).
+
+### Come ottenere le credenziali SPID e CIE
+
+Spazio Comune non si collega direttamente ai gestori dell'identità SPID (Poste, Aruba…) né al sistema CIE: per
+farlo dovrebbe aderire esso stesso alla federazione SPID/CIE, con chiavi, certificati e una propria procedura.
+Si appoggia invece a un **gateway SPID/CIE già accreditato**, che gli rilascia un *client id* e un *client secret*
+standard OpenID Connect. Le strade sono tre:
+
+1. **Il gateway che il Comune ha già (la più rapida).** Quasi tutti i Comuni offrono già SPID e CIE sul portale
+   dei servizi, spesso grazie all'avviso PNRR 1.4.4, tramite il fornitore del portale o un intermediario. Basta
+   chiedere a quel fornitore la **registrazione di un nuovo client OpenID Connect** con queste caratteristiche:
+   - redirect URI: `https://<dominio>/auth/oidc/callback`;
+   - flusso *authorization code* con PKCE (S256); autenticazione del client con secret (`client_secret_basic`,
+     oppure `client_secret_post` se il gateway lo richiede);
+   - scope `openid profile email`; attributi codice fiscale, nome, cognome, email;
+   - livello SPID 2 e accesso con CIE abilitato.
+
+   Il fornitore restituisce tre dati: **issuer** (indirizzo del gateway), **client id** e **client secret**.
+2. **Un gateway proprio del Comune**, per esempio Keycloak o SATOSA con i moduli SPID e CIE. Il Comune aderisce
+   come fornitore di servizi: per SPID presso AgID (guida "Diventa fornitore di servizi" su
+   [spid.gov.it](https://www.spid.gov.it/) e [pagina SPID di AgID](https://www.agid.gov.it/it/piattaforme/spid)),
+   per CIE sul [portale di federazione del Ministero dell'Interno](https://federazione.servizicie.interno.gov.it/docs/cie-manuale-operativo-docs)
+   (registrazione, richiesta di adesione, caricamento dei metadati). Richiede settimane e la gestione del gateway.
+3. **Un soggetto aggregatore** (Regione, Città metropolitana o fornitore accreditato) che offre il gateway come servizio.
+
+Regole tecniche: [OpenID Connect in SPID (AgID)](https://www.agid.gov.it/sites/agid/files/2024-06/linee_guida_openid_connect_in_spid.pdf)
+e [SPID/CIE OpenID Connect su docs.italia.it](https://docs.italia.it/projects/spid-cie-oidc-docs/downloads/epub/versione-corrente).
+Le procedure di adesione possono cambiare: verificarle sui portali ufficiali.
 
 ### Collegare SPID e CIE
 
@@ -137,9 +194,18 @@ non dalla pagina di amministrazione:
    OIDC_REDIRECT_URI=https://prenota.comune.esempio.it/auth/oidc/callback
    ```
 
-3. riavviare: `sudo systemctl restart spazio-comune-app`; in `/amministrazione` → *Accesso SPID/CIE* premere *Verifica il gateway*.
+3. riavviare: `sudo systemctl restart spazio-comune-app`; in `/admin` → *Accesso SPID/CIE* premere *Verifica il gateway*.
 
 Se manca qualcosa il servizio non parte e `journalctl -u spazio-comune-app` dice quale variabile correggere.
+
+### Collegare pagoPA (MyPay, Regione Puglia)
+
+Il referente pagoPA dell'ente chiede a Regione Puglia l'abilitazione ai **servizi SIL di MyPay** (endpoint, WSDL,
+password SIL, codice del tipo dovuto). La richiesta, con la bozza da inviare, è in
+[`proposta/richiesta-sil-mypay.md`](proposta/richiesta-sil-mypay.md). Le credenziali ricevute si inseriscono in
+`/admin` → *Pagamenti pagoPA*, dove sono conservate cifrate. Il collegamento effettivo richiede di
+completare l'adapter `MyPaySILGateway` con il WSDL della Regione; fino ad allora l'ufficio conferma i pagamenti
+allo sportello da `/ufficio`.
 
 ### Gestione quotidiana
 
@@ -156,7 +222,7 @@ La configurazione tecnica (database, chiavi, indirizzo) è in `/etc/spazio-comun
 da root. **Non cambiare `SECRET_KEY`**: firma i QR già emessi e protegge le credenziali salvate.
 
 → Dettagli: [Installazione](https://agentengineering.it/spazio-comune/installazione/) ·
-[Amministrazione](https://agentengineering.it/spazio-comune/amministrazione/)
+[Amministrazione](https://agentengineering.it/spazio-comune/admin/)
 
 ---
 
@@ -175,7 +241,7 @@ docker compose --profile llm up --build -d        # + LLM locale con Ollama (opz
 | Pagina | Indirizzo | Accesso |
 |---|---|---|
 | Cittadino | `/` | SPID/CIE (simulato finché non si configura il gateway) |
-| Amministrazione | `/amministrazione` | `ADMIN_USER` / `ADMIN_PASSWORD` (React + Vite, servita dall'app) |
+| Amministrazione | `/admin` | `ADMIN_USER` / `ADMIN_PASSWORD` (React + Vite, servita dall'app) |
 | Ufficio | `/ufficio` | Basic auth `UFFICIO_USER` / `UFFICIO_PASSWORD` |
 | Custode | `/custode` | utente `custode` / `CUSTODE_PASSWORD` |
 | API (OpenAPI) | `/api/docs` | libero; `/api/v1/ufficio/*` con le credenziali dell'ufficio ([riferimento](#riferimento-api-rest)) |
@@ -257,7 +323,7 @@ Un solo modello, **`.env.example`**: i valori funzionano subito in locale, e sop
 (`cp .env.example .env && chmod 600 .env`).
 
 > **Il `.env` contiene solo i valori iniziali.** Luogo, logo, attività e tariffe (anche per fascia oraria), orari,
-> pagoPA e password del personale si cambiano poi da `/amministrazione`: una sezione salvata lì prevale sul `.env` e
+> pagoPA e password del personale si cambiano poi da `/admin`: una sezione salvata lì prevale sul `.env` e
 > vale subito, anche con più processi o più server (si ricaricano entro 3 secondi). Restano solo nel `.env`
 > database, `SECRET_KEY`, `BASE_URL`, porte, **SPID/CIE (`IDENTITY_BACKEND`, `OIDC_*`)**, IA e MCP.
 
@@ -301,13 +367,13 @@ mostrato nel calendario. Per chiudere solo alcune ore resta *Riserva uno slot* i
 | `BASE_URL` | `http://localhost:8000` | `https://prenota.comune.<nome>.it` | URL pubblico senza `/` finale: QR, iCal, ritorno da pagoPA |
 | `APP_PORT` / `MCP_PORT` / `DEMO_PORT` | `8000` / `8090` / `8001` | porte del reverse proxy | Porte sulla macchina che ospita Docker: da cambiare se già occupate (con `APP_PORT` aggiornare `BASE_URL`) |
 | `SECRET_KEY` | casuale a ogni avvio | `openssl rand -hex 32`, **fisso** | Firma sessioni e QR e cifra i segreti salvati dall'amministrazione; se cambia, i QR emessi non valgono più e le credenziali pagoPA/SPID vanno reinserite |
-| `ADMIN_USER` / `ADMIN_PASSWORD` | `amministratore` / `cambiami-admin` | utente nominativo / `openssl rand -base64 24` | Pagina di amministrazione `/amministrazione`; senza password resta chiusa. Si cambiano poi dalla pagina stessa |
+| `ADMIN_USER` / `ADMIN_PASSWORD` | `amministratore` / `cambiami-admin` | utente nominativo / `openssl rand -base64 24` | Pagina di amministrazione `/admin`; senza password resta chiusa. Si cambiano poi dalla pagina stessa |
 | `UFFICIO_USER` / `UFFICIO_PASSWORD` | `ufficio.sport` / `cambiami` | utente nominativo / `openssl rand -base64 24` | Back-office e API `/api/v1/ufficio/*` |
 | `CUSTODE_PASSWORD` | `custode` | `openssl rand -base64 18` | Pagina `/custode` (utente `custode`) |
 | `FEED_TOKEN` | casuale a ogni avvio | `openssl rand -hex 24`, **fisso** | Token del calendario iCal dell'ufficio |
 | `TTL_ATTESA_MIN` | `15` | `15` | Minuti di riserva dello slot durante il pagamento |
 | `COOKIE_SECURE` | `false` | **`true`** | Cookie solo su HTTPS |
-| `PAYMENT_BACKEND` | `mock` | `mock`, poi si configura da `/amministrazione` | Simulazione pagoPA iniziale |
+| `PAYMENT_BACKEND` | `mock` | `mock`, poi si configura da `/admin` | Simulazione pagoPA iniziale |
 | `IDENTITY_BACKEND` | `mock` | **`oidc`** | `mock` = utente di prova; `oidc` = gateway SPID/CIE |
 | `OIDC_ISSUER` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | vuoti | dal gestore del gateway | Gateway SPID/CIE OpenID Connect (obbligatori con `oidc`) |
 | `OIDC_REDIRECT_URI` | vuoto = `BASE_URL/auth/oidc/callback` | `https://prenota.comune.<nome>.it/auth/oidc/callback` | Indirizzo di ritorno, da registrare presso il gateway |
@@ -419,18 +485,18 @@ curl -u ufficio.sport:cambiami "http://localhost:8001/api/v1/ufficio/occupazione
 
 #### API di amministrazione (sessione dell'amministratore + header `X-CSRF-Token`)
 
-Usate dall'interfaccia `/amministrazione`. Si entra con `POST /api/v1/amministrazione/accesso`
+Usate dall'interfaccia `/admin`. Si entra con `POST /api/v1/admin/login`
 (`{"utente", "password"}` → `{"utente", "csrf"}`); dopo 10 tentativi sbagliati l'indirizzo IP aspetta 15 minuti e la
 sessione scade dopo 30 minuti di inattività. I segreti non tornano mai indietro: si sa solo se sono impostati.
 
 | Metodo e percorso | Cosa fa |
 |---|---|
-| `GET /api/v1/amministrazione/impostazioni` | Tutte le sezioni, l'orario in vigore e le prenotazioni rimaste fuori dal nuovo orario |
-| `PUT /api/v1/amministrazione/impostazioni/{sezione}` | Valida e salva `luogo`, `attivita` (con `fasce_tariffarie`), `orari`, `pagamenti` o `accessi`; errore 422 con `{"errore"}`. `identita` è in sola lettura (409): si configura nel `.env` |
-| `POST /api/v1/amministrazione/impostazioni/{sezione}/ripristina` | Torna ai valori del `.env` |
-| `PUT` / `DELETE /api/v1/amministrazione/logo` | Logo dell'ente nell'intestazione (PNG, JPEG o WebP, massimo 512 KB) |
-| `POST /api/v1/amministrazione/identita/verifica` | Legge la configurazione OpenID del gateway SPID/CIE |
-| `GET /api/v1/amministrazione/registro` | Chi ha cambiato cosa e quando |
+| `GET /api/v1/admin/settings` | Tutte le sezioni, l'orario in vigore e le prenotazioni rimaste fuori dal nuovo orario |
+| `PUT /api/v1/admin/settings/{section}` | Valida e salva `venue`, `activities` (con `fasce_tariffarie`), `schedule`, `payments` o `access`; errore 422 con `{"errore"}`. `identity` è in sola lettura (409): si configura nel `.env` |
+| `POST /api/v1/admin/settings/{section}/restore` | Torna ai valori del `.env` |
+| `PUT` / `DELETE /api/v1/admin/logo` | Logo dell'ente nell'intestazione (PNG, JPEG o WebP, massimo 512 KB) |
+| `POST /api/v1/admin/identity/verify` | Legge la configurazione OpenID del gateway SPID/CIE |
+| `GET /api/v1/admin/audit-log` | Chi ha cambiato cosa e quando |
 
 #### Pagine web (per persone, non per integrazioni)
 
@@ -443,7 +509,7 @@ sessione scade dopo 30 minuti di inattività. I segreti non tornano mai indietro
 | `GET /mie-prenotazioni` · `/privacy` · `/auth/login` · `/auth/logout` | cittadino | area personale e accesso |
 | `GET /ufficio` · `POST /ufficio/blocca` · `POST /ufficio/{codice}/conferma` · `POST /ufficio/{codice}/annulla` | ufficio | back-office, griglia di occupazione, riserve, pagamenti allo sportello |
 | `GET /custode` · `POST /custode` | custode | verifica QR o numero di prenotazione |
-| `GET /amministrazione` | amministratore | impostazioni: luogo e logo, tariffe, orari, pagoPA, SPID/CIE, accessi, registro |
+| `GET /admin` | amministratore | impostazioni: luogo e logo, tariffe, orari, pagoPA, SPID/CIE, accessi, registro |
 | `GET /auth/oidc/avvia` · `/auth/oidc/callback` | cittadino | accesso SPID/CIE tramite il gateway OpenID Connect |
 
 #### Server di inferenza (solo rete interna Docker, `http://inference:8080`)
@@ -582,7 +648,7 @@ era già preso; ognuno dei 3 slot contesi ha un solo vincitore e nessuno slot è
 |---|---|---|
 | Cloud | Regolamento ACN cloud PA | Hosting su servizio qualificato ACN |
 | Identità | CAD art. 64 | Gateway SPID/CIE OpenID Connect: `IDENTITY_BACKEND=oidc` e `OIDC_*` nel `.env` |
-| Pagamenti | CAD art. 5, pagoPA | Credenziali SIL di Regione Puglia da `/amministrazione/pagamenti`; completare l'adapter `MyPaySILGateway` |
+| Pagamenti | CAD art. 5, pagoPA | Credenziali SIL di Regione Puglia da `/admin/payments`; completare l'adapter `MyPaySILGateway` |
 | Sicurezza | Misure minime ICT AgID | HTTPS, segreti, rate limiting, audit log, backup `pg_dump` cifrati |
 | Accessibilità | L. 4/2004, WCAG 2.1 AA | Test utenti, dichiarazione di accessibilità |
 | Privacy | GDPR | Registro trattamenti, nomina responsabile, informativa RPD |
@@ -612,7 +678,7 @@ l'app FastAPI, quindi in esercizio non c'è un servizio Node.js. Dopo una modifi
 
 ```bash
 cd admin && npm ci && npm run build      # ricompila in app/venue_booking/static/admin/
-npm run dev                              # http://localhost:5173/amministrazione con API dall'app su :8000
+npm run dev                              # http://localhost:5173/admin con API dall'app su :8000
 ```
 
 ### Demo, video e documentazione

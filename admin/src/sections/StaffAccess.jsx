@@ -4,7 +4,7 @@ import { SaveBar, useDraft, useSubmit } from "../draft.jsx";
 
 // Il primo elemento è il prefisso dei campi JSON dell'API (admin_user, ufficio_password, custode_password...).
 const ROLES = [
-  ["admin", "Amministratore (questa interfaccia)", "/amministrazione"],
+  ["admin", "Amministratore (questa interfaccia)", "/admin"],
   ["ufficio", "Ufficio", "/ufficio"],
   ["custode", "Custode", "/custode"],
 ];

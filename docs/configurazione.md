@@ -16,7 +16,7 @@ cp .env.example .env && chmod 600 .env
 
 !!! tip "Il `.env` dà i valori iniziali: il resto si cambia dalla pagina di amministrazione"
     Luogo, logo, attività e tariffe (anche per fascia oraria), orari (fasce per giorno, periodi, festivi, chiusure),
-    pagoPA e password del personale si impostano da [`/amministrazione`](amministrazione.md), senza riavvio. Una
+    pagoPA e password del personale si impostano da [`/admin`](amministrazione.md), senza riavvio. Una
     sezione salvata lì prevale sul `.env`; restano solo qui database, `SECRET_KEY`, `BASE_URL`, porte, IA, MCP e
     l'**accesso SPID/CIE** (`IDENTITY_BACKEND`, `OIDC_*`: vedi [SPID e CIE](amministrazione.md#spid-e-cie)).
     Le credenziali dell'amministratore iniziali sono `ADMIN_USER` e `ADMIN_PASSWORD`.

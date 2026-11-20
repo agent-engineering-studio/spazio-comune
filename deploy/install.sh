@@ -188,7 +188,7 @@ if [[ ! -f "$CONF" ]]; then
   {
     echo
     echo "# --- aggiunte da deploy/install.sh: installazione senza Docker"
-    echo "# Credenziali iniziali generate il $(date +%F). ADMIN_USER/ADMIN_PASSWORD aprono /amministrazione;"
+    echo "# Credenziali iniziali generate il $(date +%F). ADMIN_USER/ADMIN_PASSWORD aprono /admin;"
     echo "# da lì si cambiano tutte le password (poi queste non valgono più)."
   } >> "$CONF"
 else
@@ -198,7 +198,7 @@ else
   grep -q '^ADMIN_USER=' "$CONF" || set_var ADMIN_USER amministratore
   if ! grep -q '^ADMIN_PASSWORD=.' "$CONF"; then
     ADMIN_PASSWORD="$(gen_secret 18)"; set_var ADMIN_PASSWORD "$ADMIN_PASSWORD"
-    warn "aggiunta ADMIN_PASSWORD per il back-office /amministrazione: $ADMIN_PASSWORD"
+    warn "aggiunta ADMIN_PASSWORD per il back-office /admin: $ADMIN_PASSWORD"
   fi
   PORT="$(sed -n 's/^APP_PORT=//p' "$CONF")"; PORT="${PORT:-8000}"
 fi
@@ -293,7 +293,7 @@ BASE_URL="$(sed -n 's/^BASE_URL=//p' "$CONF")"
 step "Fatto"
 cat <<EOF
   Servizio:          $BASE_URL
-  Amministrazione:   $BASE_URL/amministrazione   (luogo, tariffe, orari, pagoPA, SPID/CIE, password)
+  Amministrazione:   $BASE_URL/admin   (luogo, tariffe, orari, pagoPA, SPID/CIE, password)
   Ufficio:           $BASE_URL/ufficio
   Custode:           $BASE_URL/custode
   Configurazione:    $CONF
@@ -307,7 +307,7 @@ if [[ $FIRST_INSTALL -eq 1 ]]; then
     amministratore  $(sed -n 's/^ADMIN_USER=//p' "$CONF") / $ADMIN_PASSWORD
     ufficio         $(sed -n 's/^UFFICIO_USER=//p' "$CONF") / $OFFICE_PASSWORD
     custode         custode / $CARETAKER_PASSWORD
-  Prossimi passi: entrare in /amministrazione, compilare luogo, tariffe e orari secondo il regolamento,
+  Prossimi passi: entrare in /admin, compilare luogo, tariffe e orari secondo il regolamento,
   poi pagoPA e SPID/CIE; cambiare le password in "Accessi del personale".
 EOF
 fi

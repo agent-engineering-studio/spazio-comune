@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
   <div><h1 class="h2">{{ VENUE.office }}</h1>
   <p class="lead">{{ VENUE.name }} · {{ VENUE.address }}</p></div>
-  <a class="btn btn-outline-primary btn-sm" href="/amministrazione">Impostazioni (amministratore)</a>
+  <a class="btn btn-outline-primary btn-sm" href="/admin">Impostazioni (amministratore)</a>
 </div>
 {% if off_schedule %}
 <div class="alert alert-warning" role="alert"><strong>{{ off_schedule|length }} prenotazion{{ 'e' if off_schedule|length == 1 else 'i' }}

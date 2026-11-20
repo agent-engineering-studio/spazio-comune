@@ -5,7 +5,7 @@ description: La pagina di amministrazione di Spazio Comune: logo e intestazione,
 
 # Amministrazione
 
-La pagina **`/amministrazione`** permette al Comune di impostare il servizio senza toccare file e senza riavviare
+La pagina **`/admin`** permette al Comune di impostare il servizio senza toccare file e senza riavviare
 nulla. Le modifiche valgono subito per cittadini, ufficio, custode, API e server MCP.
 
 ![Orari e disponibilità](screenshot/11_amministrazione.png)
@@ -129,5 +129,5 @@ FastAPI, quindi in esercizio non serve Node.js. Le API JSON sono descritte nel
 
 ```bash
 cd admin && npm ci && npm run build    # ricompila l'interfaccia
-npm run dev                            # sviluppo su http://localhost:5173/amministrazione (API dall'app su :8000)
+npm run dev                            # sviluppo su http://localhost:5173/admin (API dall'app su :8000)
 ```

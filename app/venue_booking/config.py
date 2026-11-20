@@ -5,7 +5,7 @@ import secrets
 from dataclasses import dataclass, field
 
 # .env: valori iniziali. Luogo, attività e tariffe, orari, pagamenti e password si cambiano poi
-# dal back-office /amministrazione (settings_store.py); qui restano database, segreti, indirizzi
+# dal back-office /admin (settings_store.py); qui restano database, segreti, indirizzi
 # e il gateway SPID/CIE (OIDC_*), che si configura solo qui.
 
 from .catalog import Venue
@@ -29,7 +29,7 @@ class Settings:
     office_user: str = field(default_factory=lambda: _env("UFFICIO_USER", "ufficio.sport"))
     office_password: str = field(default_factory=lambda: _env("UFFICIO_PASSWORD", "cambiami"))
     keeper_password: str = field(default_factory=lambda: _env("CUSTODE_PASSWORD", "custode"))
-    # amministratore del back-office /amministrazione (impostazioni, credenziali SPID e pagoPA);
+    # amministratore del back-office /admin (impostazioni, credenziali SPID e pagoPA);
     # senza ADMIN_PASSWORD il back-office delle impostazioni resta chiuso
     admin_user: str = field(default_factory=lambda: _env("ADMIN_USER", "amministratore"))
     admin_password: str | None = field(default_factory=lambda: _env("ADMIN_PASSWORD"))

@@ -1,6 +1,6 @@
 // Build statica servita da FastAPI: nessun servizio Node.js in esercizio.
 //   npm ci && npm run build    -> ../app/venue_booking/static/admin/
-//   npm run dev                -> http://localhost:5173/amministrazione (API e Bootstrap Italia dall'app su :8000)
+//   npm run dev                -> http://localhost:5173/admin (API e Bootstrap Italia dall'app su :8000)
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
