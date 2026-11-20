@@ -113,19 +113,24 @@ spazio-comune/
 ├── .env.example              configurazione commentata (sviluppo e produzione)
 ├── docker-compose.yml        app, inference, mcp; profili demo, llm, test
 ├── zensical.toml             questo sito
+├── admin/                    interfaccia di amministrazione (React + Vite), compilata in app/venue_booking/static/admin
+├── deploy/                   installazione su VM senza Docker: install.sh, unità systemd, nginx
 ├── app/
-│   ├── prenota/
+│   ├── venue_booking/
 │   │   ├── main.py           rotte cittadino, ufficio, custode, API REST
+│   │   ├── admin.py          API e pagina di amministrazione (/amministrazione)
+│   │   ├── settings_store.py impostazioni salvate nel database, segreti cifrati, ricarica a caldo
 │   │   ├── booking.py        slot, prenotazioni, pagamenti, check-in
-│   │   ├── catalog.py        il luogo (da .env), attività, tariffe
-│   │   ├── db.py             PostgreSQL: prenotazioni, slot, v_occupazione, vincoli
+│   │   ├── catalog.py        il luogo (Venue), attività, tariffe, calendario
+│   │   ├── db.py             PostgreSQL: prenotazioni, slot, impostazioni, logo, vincoli
 │   │   ├── ai.py             client inferenza + base di conoscenza FAQ
-│   │   ├── adapters/         identity, payments, agenda
+│   │   ├── adapters/         identity (SPID/CIE OIDC), payments (pagoPA), agenda
+│   │   ├── static/admin/     build dell'interfaccia di amministrazione
 │   │   └── templates/        Jinja2 + Bootstrap Italia
 │   ├── scripts/
 │   │   ├── demo.py           istanza con dati fittizi
-│   │   ├── simula.py         simulazione di prenotazioni concorrenti
-│   │   └── registra_demo.py  video MP4/GIF con Playwright
+│   │   ├── simulate.py       simulazione di prenotazioni concorrenti
+│   │   └── record_demo.py    video MP4/GIF con Playwright
 │   └── tests/
 ├── inference/                server IA: API OpenAI-compatibile + /v1/tasks/*
 ├── mcp_server/               server MCP (stdio o HTTP)

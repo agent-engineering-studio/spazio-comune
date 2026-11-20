@@ -1,0 +1,25 @@
+[Unit]
+Description=Spazio Comune - applicazione web (cittadini, ufficio, custode, amministrazione)
+After=network.target postgresql.service spazio-comune-inference.service
+Wants=postgresql.service spazio-comune-inference.service
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+Group=@SERVICE_USER@
+EnvironmentFile=@CONF@
+Environment=PYTHONUNBUFFERED=1 TZ=Europe/Rome
+WorkingDirectory=@DIR@/app
+ExecStart=@DIR@/venv/bin/uvicorn --factory venue_booking.main:create_app --host @HOST@ --port @PORT@ --workers @WORKERS@ --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

@@ -109,6 +109,8 @@ services:
       UFFICIO_USER: ufficio.sport          # credenziali fisse della demo
       UFFICIO_PASSWORD: cambiami
       CUSTODE_PASSWORD: custode
+      ADMIN_USER: amministratore
+      ADMIN_PASSWORD: admin
       COOKIE_SECURE: "false"
       DEMO_ORA: ${DEMO_ORA:-2026-11-09T18:35:00}
     depends_on:

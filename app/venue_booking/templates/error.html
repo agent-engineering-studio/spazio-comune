@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Attenzione{% endblock %}
+{% block main %}
+<div class="alert alert-danger" role="alert"><strong>Non è stato possibile completare l'operazione.</strong> {{ message }}</div>
+<a class="btn btn-primary" href="/">Torna al calendario</a>
+{% endblock %}

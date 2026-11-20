@@ -11,5 +11,5 @@ COPY inference/ inference/
 COPY mcp_server/ mcp_server/
 COPY pytest.ini publiccode.yml ./
 COPY docs/screenshot/ docs/screenshot/
-RUN test -f app/prenota/static/bootstrap-italia/VERSION || python app/scripts/fetch_bootstrap_italia.py
+RUN test -f app/venue_booking/static/bootstrap-italia/VERSION || python app/scripts/fetch_bootstrap_italia.py
 CMD ["pytest", "-q"]

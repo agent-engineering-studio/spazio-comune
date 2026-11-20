@@ -26,7 +26,7 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
-ISTRUZIONI = (
+INSTRUCTIONS = (
     "Strumenti per consultare un luogo comunale prenotabile (orari, disponibilità, tariffe, regole). "
     "Non puoi prenotare né pagare: quando la persona ha scelto un orario, dalle il link_prenotazione "
     "da aprire; completerà lei l'accesso con SPID/CIE e il pagamento pagoPA. "
@@ -34,56 +34,56 @@ ISTRUZIONI = (
 )
 
 
-class ErroreApp(Exception):
+class AppError(Exception):
     pass
 
 
-class ClientApp:
+class AppClient:
     """Chiamate all'app Spazio Comune; gli errori diventano messaggi leggibili per l'agente."""
 
     def __init__(self, base_url: str, client: httpx.Client | None = None,
-                 ufficio: tuple[str, str] | None = None, timeout: float = 10.0):
+                 office: tuple[str, str] | None = None, timeout: float = 10.0):
         self.base_url = base_url.rstrip("/")
-        self.ufficio = ufficio
+        self.office = office
         self._http = client or httpx.Client(timeout=timeout)
 
-    def get(self, percorso: str, riservato: bool = False, **params: Any) -> Any:
+    def get(self, path: str, restricted: bool = False, **params: Any) -> Any:
         params = {k: v for k, v in params.items() if v is not None}
         try:
-            r = self._http.get(f"{self.base_url}{percorso}", params=params,
-                               auth=self.ufficio if riservato else None)
+            r = self._http.get(f"{self.base_url}{path}", params=params,
+                               auth=self.office if restricted else None)
         except httpx.HTTPError as e:
-            raise ErroreApp(f"App Spazio Comune non raggiungibile su {self.base_url}: {e}") from None
+            raise AppError(f"App Spazio Comune non raggiungibile su {self.base_url}: {e}") from None
         if r.status_code >= 400:
             try:
-                messaggio = r.json().get("errore") or r.json().get("detail")
+                message = r.json().get("errore") or r.json().get("detail")
             except ValueError:
-                messaggio = r.text[:200]
-            raise ErroreApp(f"Errore {r.status_code}: {messaggio}")
+                message = r.text[:200]
+            raise AppError(f"Errore {r.status_code}: {message}")
         return r.json()
 
 
-def _data(valore: str | None, campo: str) -> str | None:
-    if valore in (None, ""):
+def _iso_date(value: str | None, field: str) -> str | None:
+    if value in (None, ""):
         return None
     try:
-        return date.fromisoformat(valore).isoformat()
+        return date.fromisoformat(value).isoformat()
     except ValueError:
-        raise ErroreApp(f"{campo}: usare il formato AAAA-MM-GG") from None
+        raise AppError(f"{field}: usare il formato AAAA-MM-GG") from None
 
 
-def crea_server(app: ClientApp | None = None) -> FastMCP:
+def create_server(app: AppClient | None = None) -> FastMCP:
     if app is None:
         user, pwd = os.getenv("SPAZIO_COMUNE_UFFICIO_USER"), os.getenv("SPAZIO_COMUNE_UFFICIO_PASSWORD")
-        app = ClientApp(os.getenv("SPAZIO_COMUNE_URL", "http://localhost:8000"),
-                        ufficio=(user, pwd) if user and pwd else None)
+        app = AppClient(os.getenv("SPAZIO_COMUNE_URL", "http://localhost:8000"),
+                        office=(user, pwd) if user and pwd else None)
     host = os.getenv("MCP_HOST", "127.0.0.1")
-    consentiti = [h.strip() for h in os.getenv("MCP_ALLOWED_HOSTS", "localhost:*,127.0.0.1:*").split(",") if h.strip()]
+    allowed_hosts = [h.strip() for h in os.getenv("MCP_ALLOWED_HOSTS", "localhost:*,127.0.0.1:*").split(",") if h.strip()]
     mcp = FastMCP(
-        "spazio-comune", instructions=ISTRUZIONI, host=host, port=int(os.getenv("MCP_PORT", "8090")),
+        "spazio-comune", instructions=INSTRUCTIONS, host=host, port=int(os.getenv("MCP_PORT", "8090")),
         transport_security=TransportSecuritySettings(  # protezione da DNS rebinding sul trasporto HTTP
-            enable_dns_rebinding_protection=True, allowed_hosts=consentiti,
-            allowed_origins=[f"http://{h.replace(':*', '')}" for h in consentiti]),
+            enable_dns_rebinding_protection=True, allowed_hosts=allowed_hosts,
+            allowed_origins=[f"http://{h.replace(':*', '')}" for h in allowed_hosts]),
     )
 
     @mcp.tool()
@@ -99,10 +99,10 @@ def crea_server(app: ClientApp | None = None) -> FastMCP:
         Un giorno senza slot è chiuso; `festivo` indica i giorni festivi.
         Con solo_liberi=true restituisce soltanto gli slot prenotabili.
         """
-        cal = app.get("/api/v1/disponibilita", dal=_data(dal, "dal"), giorni=max(1, min(giorni, 14)))
+        calendar = app.get("/api/v1/disponibilita", dal=_iso_date(dal, "dal"), giorni=max(1, min(giorni, 14)))
         if solo_liberi:
-            cal = [{**g, "slot": [s for s in g["slot"] if s["libero"]]} for g in cal]
-        return cal
+            calendar = [{**day, "slot": [s for s in day["slot"] if s["libero"]]} for day in calendar]
+        return calendar
 
     @mcp.tool()
     def cerca_orari(richiesta: str) -> dict:
@@ -128,14 +128,14 @@ def crea_server(app: ClientApp | None = None) -> FastMCP:
         La prenotazione si completa sul sito con SPID/CIE e pagamento pagoPA: l'agente non prenota.
         """
         info = app.get("/api/v1/spazio")
-        codici = [a["codice"] for a in info["attivita"]]
-        if attivita not in codici:
-            raise ErroreApp(f"attivita deve essere una tra: {', '.join(codici)}")
-        giorno = inizio[:10]
-        cal = app.get("/api/v1/disponibilita", dal=_data(giorno, "inizio"), giorni=1)
-        slot = next((s for g in cal for s in g["slot"] if s["inizio"] == inizio), None)
+        codes = [a["codice"] for a in info["attivita"]]
+        if attivita not in codes:
+            raise AppError(f"attivita deve essere una tra: {', '.join(codes)}")
+        day = inizio[:10]
+        calendar = app.get("/api/v1/disponibilita", dal=_iso_date(day, "inizio"), giorni=1)
+        slot = next((s for d in calendar for s in d["slot"] if s["inizio"] == inizio), None)
         if slot is None:
-            raise ErroreApp("Orario non previsto dal calendario: usa un 'inizio' restituito da disponibilita")
+            raise AppError("Orario non previsto dal calendario: usa un 'inizio' restituito da disponibilita")
         if not slot["libero"]:
             return {"disponibile": False, "stato": slot["stato"],
                     "messaggio": "Slot non disponibile: proponi un altro orario con cerca_orari o disponibilita"}
@@ -143,21 +143,21 @@ def crea_server(app: ClientApp | None = None) -> FastMCP:
                 "link": f"{info['url']}/prenota?inizio={quote(inizio)}&attivita={attivita}",
                 "nota": "Apri il link per accedere con SPID/CIE e pagare con pagoPA."}
 
-    if app.ufficio:
+    if app.office:
         @mcp.tool()
         def occupazione_slot(dal: str | None = None, giorni: int = 7) -> list[dict]:
             """[Ufficio] Per ogni slot, il numero di prenotazione che lo occupa, lo stato e l'intestatario."""
-            return app.get("/api/v1/ufficio/occupazione", riservato=True,
-                           dal=_data(dal, "dal"), giorni=max(1, min(giorni, 14)))
+            return app.get("/api/v1/ufficio/occupazione", restricted=True,
+                           dal=_iso_date(dal, "dal"), giorni=max(1, min(giorni, 14)))
 
         @mcp.tool()
         def dettaglio_prenotazione(codice: str) -> dict:
             """[Ufficio] Dettaglio di una prenotazione dal suo numero (es. GDC-7KQ2-M4XP), senza codice fiscale."""
-            return app.get(f"/api/v1/ufficio/prenotazioni/{quote(codice.strip().upper())}", riservato=True)
+            return app.get(f"/api/v1/ufficio/prenotazioni/{quote(codice.strip().upper())}", restricted=True)
 
     return mcp
 
 
 if __name__ == "__main__":
-    trasporto = os.getenv("MCP_TRANSPORT", "stdio")
-    crea_server().run("streamable-http" if trasporto == "http" else "stdio")
+    transport = os.getenv("MCP_TRANSPORT", "stdio")
+    create_server().run("streamable-http" if transport == "http" else "stdio")

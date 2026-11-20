@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Riepilogo prenotazione{% endblock %}
+{% block main %}
+<a href="/" class="small">‹ Torna al calendario</a>
+<h1 class="mt-2">Controlla e paga</h1>
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card shadow-sm mb-4"><div class="card-body">
+      <h2 class="h5">{{ activity.name }}</h2>
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Quando</dt><dd class="col-sm-8">{{ start|long_date|capitalize }}, ore {{ start[11:16] }} (60 minuti)</dd>
+        <dt class="col-sm-4">Dove</dt><dd class="col-sm-8">{{ VENUE.name }}<br><span class="small text-muted">{{ VENUE.address }}</span></dd>
+        <dt class="col-sm-4">Intestatario</dt><dd class="col-sm-8">{{ user.name }} {{ user.last_name }} <span class="small text-muted">({{ user.method }})</span></dd>
+        <dt class="col-sm-4">Importo</dt><dd class="col-sm-8"><strong>{{ fee_cents|euro }}</strong> <span class="small text-muted">totale per il gruppo{% if fee_band %} · tariffa {{ fee_band.name }}{% endif %}</span></dd>
+      </dl>
+    </div></div>
+
+    <form method="post" action="/prenota">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <input type="hidden" name="inizio" value="{{ start }}">
+      <input type="hidden" name="attivita" value="{{ activity.code }}">
+      <div class="form-group">
+        <label for="telefono" class="active">Telefono (facoltativo, solo per avvisi su chiusure improvvise)</label>
+        <input type="tel" class="form-control" id="telefono" name="telefono" maxlength="20" autocomplete="tel">
+      </div>
+      <div class="form-group">
+        <label for="note" class="active">Note per il custode (facoltative)</label>
+        <input type="text" class="form-control" id="note" name="note" maxlength="280">
+      </div>
+      <p class="small">Proseguendo, l'orario resta riservato per te per 15 minuti mentre completi il pagamento su pagoPA.
+        Il trattamento dei dati è descritto nell'<a href="/privacy">informativa privacy</a>.</p>
+      <button type="submit" class="btn btn-primary btn-lg">Paga {{ fee_cents|euro }} con pagoPA</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

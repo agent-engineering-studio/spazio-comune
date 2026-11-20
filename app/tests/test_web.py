@@ -3,10 +3,10 @@ from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
-from prenota.ai import AssistenteIA
-from prenota.main import create_app
+from venue_booking.ai import AIAssistant
+from venue_booking.main import create_app
 
-VEN_20 = "2026-11-13T20:00:00+01:00"
+FRI_20 = "2026-11-13T20:00:00+01:00"
 
 
 def _csrf(html: str) -> str:
@@ -17,21 +17,21 @@ def _login(c):
     c.get("/auth/simulato?ritorno=/")
 
 
-def _prenota_e_paga(c, inizio=VEN_20, attivita="calcetto"):
+def _book_and_pay(c, start=FRI_20, activity="calcetto"):
     _login(c)
-    r = c.get("/prenota", params={"inizio": inizio, "attivita": attivita})
+    r = c.get("/prenota", params={"inizio": start, "attivita": activity})
     assert r.status_code == 200
-    r = c.post("/prenota", data={"inizio": inizio, "attivita": attivita, "csrf_token": _csrf(r.text)},
+    r = c.post("/prenota", data={"inizio": start, "attivita": activity, "csrf_token": _csrf(r.text)},
                follow_redirects=False)
     assert r.status_code == 303 and "/pagopa-simulato/" in r.headers["location"]
-    pagina = c.get(r.headers["location"])
-    ritorno = parse_qs(urlparse(r.headers["location"]).query)["ritorno"][0]
+    page_html = c.get(r.headers["location"])
+    return_url = parse_qs(urlparse(r.headers["location"]).query)["ritorno"][0]
     r = c.post(urlparse(r.headers["location"]).path,
-               data={"ritorno": ritorno, "csrf_token": _csrf(pagina.text)}, follow_redirects=True)
+               data={"ritorno": return_url, "csrf_token": _csrf(page_html.text)}, follow_redirects=True)
     return r
 
 
-def test_home_bootstrap_italia_e_calendario(app_client):
+def test_home_bootstrap_italia_and_calendar(app_client):
     r = app_client.get("/")
     assert r.status_code == 200
     assert "/static/bootstrap-italia/dist/css/bootstrap-italia.min.css" in r.text
@@ -40,55 +40,55 @@ def test_home_bootstrap_italia_e_calendario(app_client):
     assert "€ 40,00" in r.text or "40,00" in r.text
 
 
-def test_asset_statici_serviti(app_client):
+def test_static_assets_served(app_client):
     assert app_client.get("/static/bootstrap-italia/dist/css/bootstrap-italia.min.css").status_code == 200
     assert app_client.get("/static/bootstrap-italia/dist/svg/sprites.svg").status_code == 200
 
 
-def test_flusso_completo_cittadino(app_client):
-    r = _prenota_e_paga(app_client)
+def test_full_citizen_flow(app_client):
+    r = _book_and_pay(app_client)
     assert r.status_code == 200
     assert "Prenotazione confermata" in r.text and "<svg" in r.text
-    codice = re.search(r"GDC-[A-Z2-9]{4}-[A-Z2-9]{4}", r.text).group(0)
-    ics = app_client.get(f"/prenotazione/{codice}/calendario.ics")
+    code = re.search(r"GDC-[A-Z2-9]{4}-[A-Z2-9]{4}", r.text).group(0)
+    ics = app_client.get(f"/prenotazione/{code}/calendario.ics")
     assert ics.headers["content-type"].startswith("text/calendar")
-    mie = app_client.get("/mie-prenotazioni")
-    assert codice in mie.text and "Confermata" in mie.text
+    mine = app_client.get("/mie-prenotazioni")
+    assert code in mine.text and "Confermata" in mine.text
     home = app_client.get("/?attivita=calcetto&dal=2026-11-13")
     assert "20:00 · occupato" in home.text
 
 
-def test_prenota_richiede_login(app_client):
-    r = app_client.get("/prenota", params={"inizio": VEN_20, "attivita": "calcetto"}, follow_redirects=False)
+def test_booking_requires_login(app_client):
+    r = app_client.get("/prenota", params={"inizio": FRI_20, "attivita": "calcetto"}, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("/auth/login")
 
 
-def test_csrf_obbligatorio(app_client):
+def test_csrf_required(app_client):
     _login(app_client)
-    r = app_client.post("/prenota", data={"inizio": VEN_20, "attivita": "calcetto"})
+    r = app_client.post("/prenota", data={"inizio": FRI_20, "attivita": "calcetto"})
     assert r.status_code == 400
 
 
-def test_open_redirect_bloccato(app_client):
+def test_open_redirect_blocked(app_client):
     r = app_client.get("/auth/simulato?ritorno=//evil.example", follow_redirects=False)
     assert r.headers["location"] == "/"
 
 
-def test_ticket_visibile_solo_al_titolare(app_client, settings, orologio, inference_client):
-    r = _prenota_e_paga(app_client)
-    codice = re.search(r"GDC-[A-Z2-9]{4}-[A-Z2-9]{4}", r.text).group(0)
-    altro = TestClient(app_client.app)
-    assert altro.get(f"/prenotazione/{codice}").status_code == 404
+def test_ticket_visible_only_to_owner(app_client, settings, clock, inference_client):
+    r = _book_and_pay(app_client)
+    code = re.search(r"GDC-[A-Z2-9]{4}-[A-Z2-9]{4}", r.text).group(0)
+    other = TestClient(app_client.app)
+    assert other.get(f"/prenotazione/{code}").status_code == 404
 
 
-def test_slot_occupato_mostra_errore_chiaro(app_client):
-    _prenota_e_paga(app_client)
-    r = app_client.get("/prenota", params={"inizio": VEN_20, "attivita": "calcetto"})
-    r = app_client.post("/prenota", data={"inizio": VEN_20, "attivita": "calcetto", "csrf_token": _csrf(r.text)})
+def test_taken_slot_shows_clear_error(app_client):
+    _book_and_pay(app_client)
+    r = app_client.get("/prenota", params={"inizio": FRI_20, "attivita": "calcetto"})
+    r = app_client.post("/prenota", data={"inizio": FRI_20, "attivita": "calcetto", "csrf_token": _csrf(r.text)})
     assert r.status_code == 409 and "appena stato prenotato" in r.text
 
 
-def test_assistente_propone_orari(app_client):
+def test_assistant_proposes_times(app_client):
     home = app_client.get("/")
     r = app_client.post("/assistente", data={"testo": "calcetto venerdì sera alle 20", "csrf_token": _csrf(home.text)})
     assert r.status_code == 200
@@ -96,8 +96,8 @@ def test_assistente_propone_orari(app_client):
     assert "intelligenza artificiale" in r.text
 
 
-def test_assistente_propone_alternative_se_occupato(app_client):
-    _prenota_e_paga(app_client)
+def test_assistant_proposes_alternatives_when_taken(app_client):
+    _book_and_pay(app_client)
     home = app_client.get("/")
     r = app_client.post("/assistente", data={"testo": "calcetto venerdì alle 20", "csrf_token": _csrf(home.text)})
     assert "ore 19:00" in r.text and "ore 21:00" in r.text and "Venerdì 13 novembre 2026, ore 20:00" not in r.text
@@ -109,22 +109,22 @@ def test_faq(app_client):
     assert "20,00" in r.text and "tariffe" in r.text
 
 
-def test_degrado_senza_server_ia(settings, orologio):
-    ia = AssistenteIA("http://127.0.0.1:9", timeout=0.2)
-    c = TestClient(create_app(settings, adesso=orologio, assistente=ia))
+def test_degrades_without_ai_server(settings, clock):
+    ai = AIAssistant("http://127.0.0.1:9", timeout=0.2)
+    c = TestClient(create_app(settings, now=clock, assistant=ai))
     home = c.get("/")
     r = c.post("/assistente", data={"testo": "calcetto domani", "csrf_token": _csrf(home.text)})
     assert r.status_code == 200 and "non è disponibile" in r.text
 
 
-def test_ia_disattivata_nasconde_assistente(settings, orologio):
-    c = TestClient(create_app(settings, adesso=orologio, assistente=AssistenteIA(None)))
+def test_ai_disabled_hides_assistant(settings, clock):
+    c = TestClient(create_app(settings, now=clock, assistant=AIAssistant(None)))
     assert "Dimmi cosa vuoi fare" not in c.get("/").text
 
 
-def test_ufficio_protetto_e_operativo(app_client):
+def test_office_protected_and_working(app_client):
     assert app_client.get("/ufficio").status_code == 401
-    _prenota_e_paga(app_client)
+    _book_and_pay(app_client)
     r = app_client.get("/ufficio", auth=("u", "p"))
     assert r.status_code == 200 and "€ 40,00" in r.text
     csv = app_client.get("/ufficio/export.csv", auth=("u", "p"))
@@ -137,21 +137,21 @@ def test_ufficio_protetto_e_operativo(app_client):
     assert "16:00 · riservato" in app_client.get("/?dal=2026-11-14").text
 
 
-def test_custode_check_in(app_client, orologio):
-    r = _prenota_e_paga(app_client, inizio="2026-11-09T15:00:00+01:00")
-    codice = re.search(r"GDC-[A-Z2-9]{4}-[A-Z2-9]{4}", r.text).group(0)
-    token = app_client.app.state.servizio.token_ticket(codice)
+def test_keeper_page_check_in(app_client, clock):
+    r = _book_and_pay(app_client, start="2026-11-09T15:00:00+01:00")
+    code = re.search(r"GDC-[A-Z2-9]{4}-[A-Z2-9]{4}", r.text).group(0)
+    token = app_client.app.state.service.token_ticket(code)
     assert app_client.get(f"/custode?token={token}").status_code == 401
-    orologio.avanza(hours=5)
+    clock.advance(hours=5)
     r = app_client.get(f"/custode?token={token}", auth=("custode", "c"))
     assert "Ingresso registrato" in r.text
     r = app_client.get(f"/custode?token={token}", auth=("custode", "c"))
     assert "già utilizzato" in r.text
 
 
-def test_api_pubbliche(app_client):
-    spazio = app_client.get("/api/v1/spazio").json()
-    assert {a["codice"] for a in spazio["attivita"]} == {"calcetto", "tennis_singolo", "tennis_doppio"}
-    disp = app_client.get("/api/v1/disponibilita?giorni=3").json()
-    assert len(disp) == 3
+def test_public_api(app_client):
+    venue = app_client.get("/api/v1/spazio").json()
+    assert {a["codice"] for a in venue["attivita"]} == {"calcetto", "tennis_singolo", "tennis_doppio"}
+    avail = app_client.get("/api/v1/disponibilita?giorni=3").json()
+    assert len(avail) == 3
     assert app_client.get("/api/v1/health").json()["ia"] is True

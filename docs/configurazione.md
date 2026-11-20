@@ -14,13 +14,20 @@ mette in esercizio il servizio.
 cp .env.example .env && chmod 600 .env
 ```
 
+!!! tip "Il `.env` dà i valori iniziali: il resto si cambia dalla pagina di amministrazione"
+    Luogo, logo, attività e tariffe (anche per fascia oraria), orari (fasce per giorno, periodi, festivi, chiusure),
+    pagoPA e password del personale si impostano da [`/amministrazione`](amministrazione.md), senza riavvio. Una
+    sezione salvata lì prevale sul `.env`; restano solo qui database, `SECRET_KEY`, `BASE_URL`, porte, IA, MCP e
+    l'**accesso SPID/CIE** (`IDENTITY_BACKEND`, `OIDC_*`: vedi [SPID e CIE](amministrazione.md#spid-e-cie)).
+    Le credenziali dell'amministratore iniziali sono `ADMIN_USER` e `ADMIN_PASSWORD`.
+
 !!! info "Un'installazione, un luogo"
     Le variabili `SPAZIO_*` e `COMUNE_*` descrivono **l'unico luogo** gestito da questa installazione.
     Un Comune con più luoghi installa una copia del repository per ciascuno, ognuna con il suo `.env`,
     il suo indirizzo web e il suo database.
 
 !!! danger "Prima di andare in produzione"
-    Cambia **sempre** `SECRET_KEY`, `UFFICIO_PASSWORD`, `CUSTODE_PASSWORD` e `FEED_TOKEN`, e imposta
+    Cambia **sempre** `SECRET_KEY`, `ADMIN_PASSWORD`, `UFFICIO_PASSWORD`, `CUSTODE_PASSWORD` e `FEED_TOKEN`, e imposta
     `COOKIE_SECURE=true` dietro HTTPS. Il file `.env` non va mai nel repository (è già in `.gitignore`);
     in esercizio i segreti stanno meglio nel vault o nei *secret* della piattaforma.
 
@@ -38,7 +45,7 @@ openssl rand -hex 24          # FEED_TOKEN
 |---|---|---|---|
 | `SPAZIO_NOME` | Campo comunale coperto di via Benagiano | nome ufficiale del luogo | Titolo del sito, ticket, causale pagoPA, calendario. |
 | `SPAZIO_INDIRIZZO` | Via Benagiano, 70023 Gioia del Colle (BA) | indirizzo completo | Pagine, ticket, campo *luogo* degli eventi iCal. |
-| `SPAZIO_ATTIVITA` | `calcetto,tennis_singolo,tennis_doppio` | attività ammesse dall'atto dell'ufficio | Sottoinsieme delle attività definite in `app/prenota/catalog.py`, dove si aggiungono attività nuove con la loro tariffa. Un valore sconosciuto blocca l'avvio con un messaggio chiaro. |
+| `SPAZIO_ATTIVITA` | `calcetto,tennis_singolo,tennis_doppio` | attività ammesse dall'atto dell'ufficio | Sottoinsieme delle attività definite in `app/venue_booking/catalog.py`, dove si aggiungono attività nuove con la loro tariffa. Un valore sconosciuto blocca l'avvio con un messaggio chiaro. |
 | `SPAZIO_GIORNI` | `lun,mar,mer,gio,ven,sab` | calendario dell'ufficio | Giorni di apertura (`lun` … `dom`). |
 | `SPAZIO_ORARIO` | `15-22` | orario dell'ufficio | Apertura e chiusura in ore intere (chiusura fino a `24`): con slot da 60 minuti il primo è alle 15:00, l'ultimo alle 21:00. Più intervalli separati da virgola escludono le ore in mezzo per ogni attività: `9-13,14-22` toglie la pausa 13–14. Chiusure straordinarie: *Riserva uno slot* in `/ufficio`. |
 | `SPAZIO_ORARIO_PERIODI` | vuoto | periodi dell'atto dell'ufficio | Orari che sostituiscono `SPAZIO_ORARIO` in alcuni periodi, ogni anno: `GG/MM-GG/MM=orari`, più periodi separati da `;`. Esempio: `01/06-15/09=9-13,16-24;20/12-06/01=15-20`. |

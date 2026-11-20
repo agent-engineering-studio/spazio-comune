@@ -9,8 +9,10 @@ description: Avviare Spazio Comune con Docker o in locale, eseguire i test e apr
 
 | Modalità | Serve |
 |---|---|
-| Docker (consigliata) | Docker Engine 24+ con Compose v2 |
-| Senza Docker | Python 3.12, `pip` (oppure `uv`) |
+| Macchina virtuale, senza Docker (esercizio) | Server Linux con `sudo`: vedi [Su una macchina virtuale](#su-una-macchina-virtuale-senza-docker) |
+| Docker | Docker Engine 24+ con Compose v2 |
+| Sviluppo senza Docker | Python 3.11+, `pip` (oppure `uv`), PostgreSQL |
+| Interfaccia di amministrazione (solo per modificarla) | Node.js 20+ e `npm` |
 | Registrazione video | Playwright (Chromium) e `ffmpeg` |
 | Sito di documentazione | `pip install zensical` |
 
@@ -108,12 +110,80 @@ docker compose down                       # ferma tutto (i dati restano nel volu
 docker compose down -v                    # ferma e cancella anche i dati
 ```
 
-## Senza Docker
+## Su una macchina virtuale, senza Docker
+
+Uno script installa tutto sulla macchina: PostgreSQL, Python con le librerie, i servizi di sistema, il backup
+notturno e, se si indica un nome a dominio, nginx con HTTPS. Si rilancia identico per aggiornare: dati e
+configurazione restano.
+
+### Requisiti minimi del server
+
+| Cosa | Minimo | Consigliato |
+|---|---|---|
+| Sistema operativo | Debian 12/13, Ubuntu 22.04/24.04 LTS (provati); RHEL, Rocky, Alma Linux 9 | Debian 12 o Ubuntu 24.04 LTS |
+| Processore | 1 vCPU | 2 vCPU |
+| Memoria | 2 GB | 4 GB (8 GB o più solo con un'IA generativa locale) |
+| Disco | 10 GB | 20 GB |
+| Rete in uscita | durante installazione e aggiornamenti (pacchetti del sistema, PyPI) | — |
+| Rete in entrata | porta 8000 per una prova | 80 e 443 con un nome a dominio |
+| Accesso | utente con `sudo` | — |
+
+Non servono Docker né Node.js: l'interfaccia di amministrazione è già compilata nel repository.
+
+### Installazione
 
 ```bash
-python3.12 -m venv .venv && . .venv/bin/activate
+git clone https://github.com/agent-engineering-studio/spazio-comune.git && cd spazio-comune
+sudo ./deploy/install.sh                                                   # prova su http://<ip>:8000
+sudo ./deploy/install.sh --dominio prenota.comune.esempio.it               # dietro nginx (http)
+sudo ./deploy/install.sh --dominio prenota.comune.esempio.it --email-tls ced@comune.esempio.it   # + HTTPS Let's Encrypt
+```
+
+Altre opzioni: `--porta N` (porta locale dell'app, predefinita 8000), `--workers N` (processi, predefiniti 2),
+`--senza-mcp`. L'aiuto completo si ottiene con `./deploy/install.sh --help`.
+
+Alla fine lo script stampa indirizzi e **credenziali iniziali** di amministratore, ufficio e custode. Il passo
+successivo è la [pagina di amministrazione](amministrazione.md).
+
+### Cosa installa e dove
+
+| Cosa | Dove |
+|---|---|
+| Codice | `/opt/spazio-comune/{app,inference,mcp_server}` (proprietario root, leggibile dal servizio) |
+| Ambiente Python | `/opt/spazio-comune/venv` |
+| Configurazione con i segreti generati | `/etc/spazio-comune/spazio-comune.env` (permessi 640) |
+| Database | PostgreSQL locale, database `spazio_comune`, utente `spazio` con password generata |
+| Servizi | `spazio-comune-app` (porta 8000), `spazio-comune-inference` (solo 127.0.0.1:8080), `spazio-comune-mcp` (solo 127.0.0.1:8090) |
+| Backup | timer `spazio-comune-backup` alle 02:30, `pg_dump` in `/var/backups/spazio-comune`, conservati 14 giorni |
+| Reverse proxy | `/etc/nginx/sites-available/spazio-comune.conf` (o `conf.d` su RHEL), solo con `--dominio` |
+
+I servizi girano con l'utente di sistema `spaziocomune`, senza shell, con le protezioni di systemd
+(`ProtectSystem=strict`, `NoNewPrivileges`, `PrivateTmp`). Con `--dominio` l'app ascolta solo su 127.0.0.1 e
+dall'esterno si passa da nginx.
+
+### Gestione
+
+```bash
+systemctl status spazio-comune-app                 # stato
+journalctl -u spazio-comune-app -f                 # log
+sudo systemctl restart spazio-comune-app           # riavvio (dopo una modifica al file .env)
+git pull && sudo ./deploy/install.sh               # aggiornamento
+sudo -u postgres pg_restore --clean -d spazio_comune /var/backups/spazio-comune/<file>.dump   # ripristino
+```
+
+!!! warning "Backup fuori dal server"
+    Il backup notturno resta sulla stessa macchina: copiarlo anche altrove (storage del Comune, backup della VM).
+
+Per togliere tutto: `systemctl disable --now spazio-comune-{app,inference,mcp} spazio-comune-backup.timer`,
+poi cancellare `/opt/spazio-comune`, `/etc/spazio-comune` e i file `spazio-comune-*` in `/etc/systemd/system`.
+Il database si elimina con `sudo -u postgres dropdb spazio_comune`.
+
+## Sviluppo senza Docker
+
+```bash
+python3 -m venv .venv && . .venv/bin/activate
 pip install -r app/requirements.txt -r inference/requirements.txt -r mcp_server/requirements.txt pytest
-python app/scripts/fetch_bootstrap_italia.py     # solo se manca app/prenota/static/bootstrap-italia
+python app/scripts/fetch_bootstrap_italia.py     # solo se manca app/venue_booking/static/bootstrap-italia
 
 # un PostgreSQL 17 raggiungibile (anche solo il container: docker compose up -d db, con una porta pubblicata)
 export DATABASE_URL=postgresql://spazio:<password>@localhost:5432/spazio_comune
@@ -122,7 +192,7 @@ export DATABASE_URL=postgresql://spazio:<password>@localhost:5432/spazio_comune
 (cd inference && uvicorn server:app --port 8080) &
 
 # app
-(cd app && INFERENCE_URL=http://127.0.0.1:8080 uvicorn --factory prenota.main:create_app --port 8000)
+(cd app && INFERENCE_URL=http://127.0.0.1:8080 uvicorn --factory venue_booking.main:create_app --port 8000)
 ```
 
 Istanza demo in locale: `INFERENCE_URL=http://127.0.0.1:8080 python app/scripts/demo.py` (usa lo schema `demo`).
@@ -144,14 +214,14 @@ La suite copre:
 
 ## Simulazione
 
-`app/scripts/simula.py` fa prenotare in parallelo dei cittadini virtuali attraverso il sito vero: SPID
+`app/scripts/simulate.py` fa prenotare in parallelo dei cittadini virtuali attraverso il sito vero: SPID
 simulato, scelta dello slot, pagamento pagoPA simulato. Metà di loro punta di proposito agli stessi tre orari.
 Alla fine lo script controlla sul database, tramite l'API dell'ufficio, che ogni slot occupato porti un solo
 numero di prenotazione.
 
 ```bash
 docker compose --profile demo up -d && docker compose restart demo
-python app/scripts/simula.py --url http://localhost:8001 --cittadini 30
+python app/scripts/simulate.py --url http://localhost:8001 --cittadini 30
 ```
 
 ```text
